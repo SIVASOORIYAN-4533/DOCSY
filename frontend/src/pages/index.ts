@@ -1,0 +1,10 @@
+export { default as Login } from "./auth/Login";
+export { default as Register } from "./auth/Register";
+export { default as Dashboard } from "./dashboard/Dashboard";
+export { default as MyDocuments } from "./documents/MyDocuments";
+export { default as SecuredDocuments } from "./documents/SecuredDocuments";
+export { default as Upload } from "./documents/Upload";
+export { default as SharedFiles } from "./documents/SharedFiles";
+export { default as SmartSearch } from "./search/SmartSearch";
+export { default as Analytics } from "./insights/Analytics";
+export { default as Settings } from "./settings/Settings";
