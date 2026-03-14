@@ -8,7 +8,6 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  FileText,
   Lock,
   ChevronLeft,
   ChevronRight,
@@ -39,17 +38,19 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
   ];
 
   return (
-    <aside className={`${isCollapsed ? "w-20" : "w-64"} bg-slate-900 text-white flex flex-col h-full transition-all duration-300 relative`}>
+    <aside
+      className={`${isCollapsed ? "w-20" : "w-64"} bg-white dark:bg-slate-900 text-slate-700 dark:text-white border-r border-slate-200 dark:border-slate-800 flex flex-col h-full transition-all duration-300 relative`}
+    >
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-20 bg-indigo-600 text-white p-1 rounded-full shadow-lg z-50 hover:bg-indigo-500 transition-colors"
+        className="absolute -right-3 top-20 bg-indigo-600 text-white p-1 rounded-full border-2 border-white dark:border-slate-950 shadow-lg z-50 hover:bg-indigo-500 transition-colors"
       >
         {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>
 
-      <div className={`p-6 flex items-center ${isCollapsed ? "justify-center" : "gap-3"} border-b border-slate-800`}>
-        <div className="bg-indigo-600 p-2 rounded-lg shrink-0">
-          <FileText className="w-6 h-6" />
+      <div className={`p-6 flex items-center ${isCollapsed ? "justify-center" : "gap-3"} border-b border-slate-200 dark:border-slate-800`}>
+        <div className="bg-indigo-600 p-2 rounded-full shrink-0 overflow-hidden">
+          <img src="/docsylogo-mark.png" alt="DOCSY logo" className="w-6 h-6 object-cover rounded-full" />
         </div>
         {!isCollapsed && (
           <motion.h1 
@@ -72,7 +73,7 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
               `flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
               }`
             }
           >
@@ -90,7 +91,7 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800">
         <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 mb-4`}>
           <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shrink-0 overflow-hidden">
             {user?.profilePhoto ? (
@@ -106,14 +107,14 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
               className="overflow-hidden"
             >
               <p className="text-sm font-semibold truncate">{user?.name || "User"}</p>
-              <p className="text-xs text-slate-400 truncate">{roleLabel}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{roleLabel}</p>
             </motion.div>
           )}
         </div>
         <button
           onClick={onLogout}
           title={isCollapsed ? "Logout" : ""}
-          className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 w-full text-left text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors`}
+          className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors`}
         >
           <LogOut className="w-5 h-5 shrink-0" />
           {!isCollapsed && (

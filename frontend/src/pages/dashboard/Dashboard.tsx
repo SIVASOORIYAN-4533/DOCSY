@@ -12,6 +12,7 @@ import {
 import { User, Document } from "../../types";
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface DashboardProps {
   user: User;
@@ -33,7 +34,7 @@ export default function Dashboard({ user }: DashboardProps) {
   const fetchDocs = async () => {
     try {
       const response = await fetch("/api/documents", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const data: Document[] = await response.json();

@@ -2,6 +2,7 @@ import { Share2, FileText, Loader2, Download, Eye, Trash2, Upload, X, Check, Ban
 import { useEffect, useMemo, useState } from "react";
 import { Document, User } from "../../types";
 import { AnimatePresence, motion } from "motion/react";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface SharedFilesProps {
   user: User;
@@ -19,7 +20,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
   const [shareFile, setShareFile] = useState<File | null>(null);
   const [sharing, setSharing] = useState(false);
 
-  const token = localStorage.getItem("token");
+  const token = getAuthToken();
 
   const parseJsonSafe = async (response: Response): Promise<any> => {
     const raw = await response.text();

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface SecuredDocumentsProps {
   user: User;
@@ -21,6 +22,7 @@ interface SecuredDocumentsProps {
 
 export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
   const [isVerified, setIsVerified] = useState(false);
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(true);
   const [password, setPassword] = useState("");
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,13 +42,15 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
+          "Authorization": `Bearer ${getAuthToken()}` 
         },
         body: JSON.stringify({ password }),
       });
 
       if (response.ok) {
         setIsVerified(true);
+        setShowUnlockPrompt(true);
+        setPassword("");
         fetchSecuredDocs();
       } else {
         const data = await response.json();
@@ -80,7 +84,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
+          "Authorization": `Bearer ${getAuthToken()}` 
         },
         body: JSON.stringify({ password: newPassword, accountPassword }),
       });
@@ -88,6 +92,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
       if (response.ok) {
         setIsSettingPassword(false);
         setIsVerified(true);
+        setShowUnlockPrompt(true);
         setAccountPassword("");
         setNewPassword("");
         setConfirmPassword("");
@@ -107,7 +112,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
     setLoading(true);
     try {
       const response = await fetch("/api/documents/secured", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -123,7 +128,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
   const handleDownload = async (doc: Document) => {
     try {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const blob = await response.blob();
@@ -138,6 +143,13 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleLockVault = () => {
+    setIsVerified(false);
+    setShowUnlockPrompt(false);
+    setPassword("");
+    setError("");
   };
 
   if (!isVerified) {
@@ -202,7 +214,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
                 </button>
               </form>
             </>
-          ) : (
+          ) : showUnlockPrompt ? (
             <>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Secured Access</h2>
               <p className="text-slate-500 dark:text-slate-400 mb-8">
@@ -231,6 +243,20 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
                 </button>
               </form>
             </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Vault Locked</h2>
+              <p className="text-slate-500 dark:text-slate-400 mb-8">
+                Your secured vault is locked.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowUnlockPrompt(true)}
+                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all"
+              >
+                Unlock Vault
+              </button>
+            </>
           )}
         </motion.div>
       </div>
@@ -248,7 +274,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
           <p className="text-slate-500 dark:text-slate-400">Your most sensitive files, protected by extra security.</p>
         </div>
         <button 
-          onClick={() => setIsVerified(false)}
+          onClick={handleLockVault}
           className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors"
         >
           Lock Vault

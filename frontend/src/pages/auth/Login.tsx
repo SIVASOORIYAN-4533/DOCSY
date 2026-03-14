@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, FileText, Chrome, Github, ArrowLeft, GraduationCap } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Chrome, Github, ArrowLeft, GraduationCap } from "lucide-react";
 import { User } from "../../types";
 import { motion } from "motion/react";
 
 interface LoginProps {
-  onLogin: (user: User, token: string) => void;
+  onLogin: (user: User, token: string, rememberMe: boolean) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -20,6 +20,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [forgotTeacherAnswer, setForgotTeacherAnswer] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
   const parseJsonSafe = async (response: Response): Promise<Record<string, any>> => {
@@ -61,7 +62,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       const data = await parseJsonSafe(response);
       if (response.ok) {
-        onLogin(data.user, data.token);
+        onLogin(data.user, data.token, rememberMe);
         navigate("/");
       } else {
         setError(data.error || "Login failed");
@@ -164,8 +165,8 @@ export default function Login({ onLogin }: LoginProps) {
       >
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="bg-indigo-600 p-3 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
-              <FileText className="w-8 h-8 text-white" />
+            <div className="bg-indigo-600 p-3 rounded-full mb-4 shadow-lg shadow-indigo-500/30 overflow-hidden">
+              <img src="/docsylogo-mark.png" alt="DOCSY logo" className="w-8 h-8 object-cover rounded-full" />
             </div>
             <h1 className="text-3xl font-bold text-white tracking-tight">DOCSY</h1>
             <p className="text-indigo-200 mt-2 font-medium">Manage your documents intelligently</p>
@@ -285,7 +286,12 @@ export default function Login({ onLogin }: LoginProps) {
             {!isForgotMode && (
               <div className="flex items-center justify-between text-sm px-1">
                 <label className="flex items-center gap-2 text-indigo-200 cursor-pointer">
-                  <input type="checkbox" className="rounded border-white/10 bg-white/5 text-indigo-600 focus:ring-indigo-500" />
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-white/10 bg-white/5 text-indigo-600 focus:ring-indigo-500"
+                  />
                   <span>Remember me</span>
                 </label>
                 <button

@@ -58,8 +58,11 @@ const renderOAuthCompletePage = (token: string, user: unknown): string => {
   const errorBaseUrl = buildFrontendUrl("/login?oauth_error=");
   return `<!doctype html><html><head><meta charset="utf-8"><title>Signing in...</title></head><body><script>
 try {
-  localStorage.setItem("token", ${JSON.stringify(token)});
-  localStorage.setItem("user", ${JSON.stringify(user)});
+  localStorage.setItem("rememberMe", "false");
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  sessionStorage.setItem("token", ${JSON.stringify(token)});
+  sessionStorage.setItem("user", ${JSON.stringify(user)});
   window.location.replace(${JSON.stringify(homeUrl)});
 } catch (e) {
   window.location.replace(${JSON.stringify(errorBaseUrl)} + encodeURIComponent("Failed to complete sign-in"));

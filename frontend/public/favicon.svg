@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="docsyGradient" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b6bff" />
+      <stop offset="1" stop-color="#3f46d6" />
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#docsyGradient)" />
+  <path
+    fill="#ffffff"
+    d="M22 14h16c10.5 0 18 7.5 18 18s-7.5 18-18 18H22c-2.2 0-4-1.8-4-4V18c0-2.2 1.8-4 4-4Zm15.5 10h-7.5v16h7.5c5.2 0 9-3.4 9-8s-3.8-8-9-8Z"
+  />
+</svg>

@@ -1,6 +1,7 @@
 import { User as UserIcon, Shield, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { User } from "../../types";
+import { getAuthToken, updateStoredUser } from "../../utils/authStorage";
 
 interface SettingsProps {
   user: User;
@@ -32,7 +33,7 @@ export default function Settings({ user }: SettingsProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${getAuthToken()}`,
         },
         body: JSON.stringify({ password: "__vault_status_probe__" }),
       });
@@ -54,7 +55,7 @@ export default function Settings({ user }: SettingsProps) {
   const loadVaultStatus = async () => {
     try {
       const response = await fetch("/api/auth/secured-password/status", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
 
       if (!response.ok) {
@@ -125,7 +126,7 @@ export default function Settings({ user }: SettingsProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${getAuthToken()}`,
           },
           body: JSON.stringify({ password: oldVaultPassword }),
         });
@@ -152,7 +153,7 @@ export default function Settings({ user }: SettingsProps) {
         method: activeTab === "profile" ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${getAuthToken()}`,
         },
         body: JSON.stringify(body),
       });
@@ -161,7 +162,7 @@ export default function Settings({ user }: SettingsProps) {
         setSuccess(true);
         if (activeTab === "profile") {
           const updatedUser = { ...user, name, email, profilePhoto };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          updateStoredUser(updatedUser);
           window.dispatchEvent(new Event("user-updated"));
           setFavouriteTeacher("");
           setMessage("Profile updated successfully.");
@@ -171,7 +172,7 @@ export default function Settings({ user }: SettingsProps) {
           setAccountPassword("");
           setIsVaultPasswordSet(true);
           const updatedUser = { ...user, hasSecuredPassword: true };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          updateStoredUser(updatedUser);
           window.dispatchEvent(new Event("user-updated"));
           setMessage("Secured vault password updated successfully.");
         }

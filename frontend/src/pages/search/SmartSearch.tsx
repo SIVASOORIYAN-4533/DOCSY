@@ -3,6 +3,7 @@ import { Search, Files, FileText, Calendar, Tag, User as UserIcon, Loader2, Arro
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams } from "react-router-dom";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface SmartSearchProps {
   user: User;
@@ -28,7 +29,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
     setHasSearched(true);
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -57,7 +58,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
   const handleDownload = async (doc: Document) => {
     try {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
+        headers: { "Authorization": `Bearer ${getAuthToken()}` },
       });
       if (!response.ok) return;
 

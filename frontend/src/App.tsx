@@ -7,6 +7,13 @@ import { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthState, User } from "./types";
 import {
+  clearAuthSession,
+  getAuthToken,
+  getStoredUser,
+  normalizeLegacyAuthStorage,
+  saveAuthSession,
+} from "./utils/authStorage";
+import {
   Login,
   Register,
   Dashboard,
@@ -22,8 +29,9 @@ import Layout from "./components/layout";
 
 export default function App() {
   const loadAuthFromStorage = (): AuthState => {
-    const token = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
+    normalizeLegacyAuthStorage();
+    const token = getAuthToken();
+    const storedUser = getStoredUser();
     let user = null;
     try {
       user = storedUser ? JSON.parse(storedUser) : null;
@@ -55,15 +63,13 @@ export default function App() {
     };
   }, []);
 
-  const handleLogin = (user: User, token: string) => {
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(user));
+  const handleLogin = (user: User, token: string, rememberMe = false) => {
+    saveAuthSession(token, user, rememberMe);
     setAuth({ user, token, isAuthenticated: true });
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearAuthSession();
     setAuth({ user: null, token: null, isAuthenticated: false });
   };
 

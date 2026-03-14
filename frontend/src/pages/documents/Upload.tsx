@@ -2,11 +2,46 @@ import { useState, useCallback } from "react";
 import { Upload as UploadIcon, FileText, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { User } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
-import { CATEGORIES, DEPARTMENTS } from "../../constants";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface UploadProps {
   user: User;
 }
+
+const UPLOAD_CATEGORIES = [
+  "General",
+  "Identity",
+  "Financial",
+  "Educational",
+  "Legal",
+  "Business",
+  "Medical",
+  "Personal",
+  "Technical",
+  "Media",
+  "Others",
+];
+
+const DOCUMENT_TYPES_BY_CATEGORY: Record<string, string[]> = {
+  General: ["General"],
+  Identity: ["Aadhaar card", "Passport", "Driving license", "ID cards"],
+  Financial: ["Bank statements", "Invoices", "Receipts", "Tax documents"],
+  Educational: ["Certificates", "Mark sheets", "Transcripts", "Degree documents"],
+  Legal: ["Agreements", "Contracts", "Licenses", "Affidavits"],
+  Business: ["Project reports", "Proposals", "Company records"],
+  Medical: ["Medical reports", "Prescriptions", "Insurance records"],
+  Personal: ["Birth certificate", "Marriage certificate", "Personal records"],
+  Technical: ["Design documents", "System architecture", "Technical reports"],
+  Media: ["Images", "Videos", "Audio related to documentation"],
+};
+
+const DOCUMENT_TYPE_OTHER_OPTION = "Others";
+const getDocumentTypeOptions = (category: string) => [
+  ...(DOCUMENT_TYPES_BY_CATEGORY[category] ?? []),
+  DOCUMENT_TYPE_OTHER_OPTION,
+];
+const DEFAULT_CATEGORY = "General";
+const DEFAULT_DOCUMENT_TYPE = getDocumentTypeOptions(DEFAULT_CATEGORY)[0];
 
 export default function Upload({ user }: UploadProps) {
   const [file, setFile] = useState<File | null>(null);
@@ -16,10 +51,11 @@ export default function Upload({ user }: UploadProps) {
   const [error, setError] = useState("");
   const [metadata, setMetadata] = useState({
     title: "",
-    category: "General",
+    category: DEFAULT_CATEGORY,
+    customCategory: "",
+    documentType: DEFAULT_DOCUMENT_TYPE,
+    customDocumentType: "",
     description: "",
-    tags: "",
-    department: DEPARTMENTS[0],
     is_secured: false,
   });
 
@@ -39,22 +75,36 @@ export default function Upload({ user }: UploadProps) {
     e.preventDefault();
     if (!file) return;
 
-    setUploading(true);
     setError("");
+    const customCategory = metadata.customCategory.trim();
+    if (metadata.category === "Others" && !customCategory) {
+      setError("Please specify the document category.");
+      return;
+    }
+    const rawDocumentType =
+      metadata.documentType === DOCUMENT_TYPE_OTHER_OPTION
+        ? metadata.customDocumentType
+        : metadata.documentType;
+    const documentType = rawDocumentType.trim();
+    if (!documentType) {
+      setError("Please specify the document type.");
+      return;
+    }
+    setUploading(true);
+    const selectedCategory = metadata.category === "Others" ? customCategory : metadata.category;
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", metadata.title || file.name);
-    formData.append("category", metadata.category);
+    formData.append("category", selectedCategory);
     formData.append("description", metadata.description);
-    formData.append("tags", metadata.tags);
-    formData.append("department", metadata.department);
+    formData.append("department", documentType);
     formData.append("is_secured", metadata.is_secured.toString());
 
     try {
       const response = await fetch("/api/documents/upload", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
+        headers: { "Authorization": `Bearer ${getAuthToken()}` },
         body: formData,
       });
 
@@ -63,10 +113,11 @@ export default function Upload({ user }: UploadProps) {
         setFile(null);
         setMetadata({
           title: "",
-          category: "General",
+          category: DEFAULT_CATEGORY,
+          customCategory: "",
+          documentType: DEFAULT_DOCUMENT_TYPE,
+          customDocumentType: "",
           description: "",
-          tags: "",
-          department: DEPARTMENTS[0],
           is_secured: false,
         });
       } else {
@@ -79,6 +130,8 @@ export default function Upload({ user }: UploadProps) {
       setUploading(false);
     }
   };
+
+  const documentTypeOptions = getDocumentTypeOptions(metadata.category);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 text-slate-900 dark:text-slate-100">
@@ -174,21 +227,59 @@ export default function Upload({ user }: UploadProps) {
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Category</label>
               <select
                 value={metadata.category}
-                onChange={(e) => setMetadata({ ...metadata, category: e.target.value })}
+                onChange={(e) => {
+                  const nextCategory = e.target.value;
+                  setMetadata((previous) => ({
+                    ...previous,
+                    category: nextCategory,
+                    customCategory: nextCategory === "Others" ? previous.customCategory : "",
+                    documentType: getDocumentTypeOptions(nextCategory)[0],
+                    customDocumentType: "",
+                  }));
+                }}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none text-slate-900 dark:text-slate-100"
               >
-                {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                {UPLOAD_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
+              {metadata.category === "Others" && (
+                <input
+                  type="text"
+                  value={metadata.customCategory}
+                  onChange={(e) => setMetadata({ ...metadata, customCategory: e.target.value })}
+                  placeholder="Document Category"
+                  className="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                />
+              )}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Department</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Document Type</label>
               <select
-                value={metadata.department}
-                onChange={(e) => setMetadata({ ...metadata, department: e.target.value })}
+                value={metadata.documentType}
+                onChange={(e) =>
+                  setMetadata({
+                    ...metadata,
+                    documentType: e.target.value,
+                    customDocumentType:
+                      e.target.value === DOCUMENT_TYPE_OTHER_OPTION ? metadata.customDocumentType : "",
+                  })
+                }
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none text-slate-900 dark:text-slate-100"
               >
-                {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                {documentTypeOptions.map((documentTypeOption) => (
+                  <option key={documentTypeOption} value={documentTypeOption}>
+                    {documentTypeOption}
+                  </option>
+                ))}
               </select>
+              {metadata.documentType === DOCUMENT_TYPE_OTHER_OPTION && (
+                <input
+                  type="text"
+                  value={metadata.customDocumentType}
+                  onChange={(e) => setMetadata({ ...metadata, customDocumentType: e.target.value })}
+                  placeholder="Document Type"
+                  className="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                />
+              )}
             </div>
           </div>
 
@@ -200,17 +291,6 @@ export default function Upload({ user }: UploadProps) {
               placeholder="Brief description of the document..."
               rows={3}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Tags (comma separated)</label>
-            <input
-              type="text"
-              value={metadata.tags}
-              onChange={(e) => setMetadata({ ...metadata, tags: e.target.value })}
-              placeholder="invoice, march, 2024"
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
 
@@ -230,7 +310,13 @@ export default function Upload({ user }: UploadProps) {
 
           <button
             type="submit"
-            disabled={!file || uploading}
+            disabled={
+              !file ||
+              uploading ||
+              (metadata.category === "Others" && !metadata.customCategory.trim()) ||
+              (metadata.documentType === DOCUMENT_TYPE_OTHER_OPTION &&
+                !metadata.customDocumentType.trim())
+            }
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {uploading ? (

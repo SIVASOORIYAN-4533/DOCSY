@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface MyDocumentsProps {
   user: User;
@@ -42,7 +43,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     setLoading(true);
     try {
       const response = await fetch("/api/documents", {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -60,7 +61,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     try {
       const response = await fetch(`/api/documents/${id}`, {
         method: "DELETE",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         setDocs((prev) => prev.filter((d) => d.id !== id));
@@ -73,7 +74,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const handleDownload = async (doc: Document) => {
     try {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const blob = await response.blob();
@@ -93,7 +94,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const handleView = async (doc: Document) => {
     try {
       const response = await fetch(`/api/documents/${doc.id}/view`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+        headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (response.ok) {
         const blob = await response.blob();
@@ -120,7 +121,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}` 
+          "Authorization": `Bearer ${getAuthToken()}` 
         },
         body: JSON.stringify({ email: shareEmail.trim(), permission: "view" }),
       });

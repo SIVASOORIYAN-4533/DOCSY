@@ -2,6 +2,7 @@ import { BarChart3, TrendingUp, PieChart, Activity, Loader2 } from "lucide-react
 import { motion } from "motion/react";
 import { useState, useEffect } from "react";
 import { Document } from "../../types";
+import { getAuthToken } from "../../utils/authStorage";
 
 export default function Analytics() {
   const [docs, setDocs] = useState<Document[]>([]);
@@ -9,7 +10,7 @@ export default function Analytics() {
 
   useEffect(() => {
     fetch("/api/documents", {
-      headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      headers: { "Authorization": `Bearer ${getAuthToken()}` }
     })
     .then(res => res.json())
     .then(data => {
