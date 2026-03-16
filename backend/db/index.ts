@@ -12,7 +12,7 @@ const ensureSqliteDb = (): Database => {
     throw new Error("SQLite is disabled. Configure MongoDB Atlas or enable SQLite fallback.");
   }
 
-  sqliteInstance = new Database("smartdoc.db");
+  sqliteInstance = new Database(env.sqliteDbPath);
   sqliteInstance.pragma("foreign_keys = ON");
   return sqliteInstance;
 };

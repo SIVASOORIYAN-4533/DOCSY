@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import multer from "multer";
+import { env } from "../config/env";
 
-const uploadsDir = path.resolve(process.cwd(), "uploads");
+const uploadsDir = path.resolve(process.cwd(), env.uploadDir);
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -18,4 +19,3 @@ const storage = multer.diskStorage({
 });
 
 export const upload = multer({ storage });
-

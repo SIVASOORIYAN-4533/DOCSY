@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Chrome, Github, ArrowLeft, GraduationCap } from "lucide-react";
 import { User } from "../../types";
 import { motion } from "motion/react";
+import { buildApiUrl } from "../../utils/api";
 
 interface LoginProps {
   onLogin: (user: User, token: string, rememberMe: boolean) => void;
@@ -37,15 +38,33 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthError = params.get("oauth_error");
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const oauthToken = hashParams.get("oauth_token") ?? searchParams.get("oauth_token");
+    const oauthUserRaw = hashParams.get("oauth_user") ?? searchParams.get("oauth_user");
+    const oauthError = searchParams.get("oauth_error");
+
+    if (oauthToken && oauthUserRaw) {
+      try {
+        const oauthUser = JSON.parse(oauthUserRaw) as User;
+        onLogin(oauthUser, oauthToken, false);
+        navigate("/", { replace: true });
+        return;
+      } catch {
+        setError("Failed to complete social login.");
+      }
+    }
+
     if (oauthError) {
       setError(oauthError);
-      params.delete("oauth_error");
-      const query = params.toString();
-      window.history.replaceState({}, "", query ? `/login?${query}` : "/login");
     }
-  }, []);
+
+    searchParams.delete("oauth_token");
+    searchParams.delete("oauth_user");
+    searchParams.delete("oauth_error");
+    const query = searchParams.toString();
+    window.history.replaceState({}, "", query ? `/login?${query}` : "/login");
+  }, [navigate, onLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -353,7 +372,7 @@ export default function Login({ onLogin }: LoginProps) {
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                onClick={() => { window.location.href = "/api/auth/google"; }}
+                onClick={() => { window.location.href = buildApiUrl("/api/auth/google"); }}
                 className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
               >
                 <Chrome className="w-5 h-5" />
@@ -361,7 +380,7 @@ export default function Login({ onLogin }: LoginProps) {
               </button>
               <button
                 type="button"
-                onClick={() => { window.location.href = "/api/auth/github"; }}
+                onClick={() => { window.location.href = buildApiUrl("/api/auth/github"); }}
                 className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
               >
                 <Github className="w-5 h-5" />

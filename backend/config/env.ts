@@ -32,14 +32,39 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
   return fallback;
 };
 
+const normalizeOrigin = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+};
+
+const parseOrigins = (value: string | undefined, fallback: string): string[] => {
+  const resolved = (value ?? fallback)
+    .split(",")
+    .map((origin) => normalizeOrigin(origin))
+    .filter((origin) => origin.length > 0);
+  return [...new Set(resolved)];
+};
+
 const inferredDbProvider =
-  process.env.DB_PROVIDER ?? (process.env.MONGODB_URI ? "mongodb" : "sqlite");
+  process.env.DB_PROVIDER ?? (process.env.MONGODB_URI || process.env.MONGO_URI ? "mongodb" : "sqlite");
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const port = parsePort(process.env.PORT, 5001);
 const oauthBaseUrl = process.env.OAUTH_BASE_URL ?? `http://localhost:${port}`;
+const primaryCorsOrigin = (process.env.CORS_ORIGIN ?? "").split(",")[0] ?? "";
+const frontendFallbackUrl =
+  nodeEnv === "production" ? normalizeOrigin(primaryCorsOrigin) || oauthBaseUrl : "http://localhost:5173";
 const frontendBaseUrl =
-  process.env.FRONTEND_BASE_URL ??
-  (nodeEnv === "production" ? oauthBaseUrl : "http://localhost:5173");
+  process.env.FRONTEND_BASE_URL ?? frontendFallbackUrl;
+const mongodbUri = process.env.MONGODB_URI ?? process.env.MONGO_URI ?? "";
+const corsOrigins = parseOrigins(process.env.CORS_ORIGIN, frontendBaseUrl);
 
 export const env = {
   nodeEnv,
@@ -52,10 +77,13 @@ export const env = {
     process.env.DB_FALLBACK_TO_SQLITE,
     nodeEnv !== "production",
   ),
-  mongodbUri: process.env.MONGODB_URI ?? "",
+  mongodbUri,
   mongodbDbName: process.env.MONGODB_DB_NAME ?? "",
   oauthBaseUrl,
   frontendBaseUrl,
+  corsOrigins,
+  uploadDir: process.env.UPLOAD_DIR ?? "uploads",
+  sqliteDbPath: process.env.SQLITE_DB_PATH ?? "smartdoc.db",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   githubClientId: process.env.GITHUB_CLIENT_ID ?? "",

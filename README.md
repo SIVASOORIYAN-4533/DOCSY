@@ -2,11 +2,12 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# SMARTDOC (Frontend + Backend)
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/9af9caa9-63da-43e6-9df7-4e834e050969
+This repo contains:
+- `frontend/`: React + Vite client
+- `backend/`: Express API
+- `server.ts`: backend startup entrypoint
 
 ## Run Locally
 
@@ -15,7 +16,7 @@ View your app in AI Studio: https://ai.studio/apps/9af9caa9-63da-43e6-9df7-4e834
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Copy [.env.example](.env.example) to `.env.local` and fill values
 3. Run the app:
    `npm run dev`
 
@@ -24,6 +25,8 @@ Development commands:
 - `npm run dev`: starts backend + frontend together, and auto-selects free ports when defaults are occupied
 - `npm run dev:backend`: starts only the backend API
 - `npm run dev:frontend`: starts only the frontend Vite app
+- `npm run build`: builds frontend into `dist/`
+- `npm run start`: starts backend in production mode using `tsx`
 
 ## Frontend And Backend Split
 
@@ -49,6 +52,8 @@ MONGODB_DB_NAME=smartdoc
 
 If `DB_PROVIDER` is not set, the app uses `mongodb` automatically when `MONGODB_URI` is present; otherwise it uses `sqlite`.
 
+`MONGO_URI` is also accepted as an alias for `MONGODB_URI`.
+
 Verify active DB connection at:
 
 - `GET /api/health/db`
@@ -72,6 +77,64 @@ Callback URLs to configure in providers:
 
 - Google: `http://localhost:5001/api/auth/google/callback`
 - GitHub: `http://localhost:5001/api/auth/github/callback`
+
+## Deploy: Vercel (Frontend) + Render (Backend)
+
+### 1. Deploy backend on Render
+
+You can use [render.yaml](render.yaml) or configure manually.
+
+Recommended Render env vars:
+
+```env
+NODE_ENV=production
+PORT_SEARCH_LIMIT=0
+JWT_SECRET=<strong-random-secret>
+DB_PROVIDER=mongodb
+MONGODB_URI=<your-atlas-uri>
+MONGODB_DB_NAME=smartdoc
+FRONTEND_BASE_URL=https://<your-vercel-domain>
+OAUTH_BASE_URL=https://<your-render-domain>
+CORS_ORIGIN=https://<your-vercel-domain>
+```
+
+Optional backend vars:
+
+```env
+GEMINI_API_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+UPLOAD_DIR=uploads
+SQLITE_DB_PATH=smartdoc.db
+```
+
+### 2. Deploy frontend on Vercel
+
+This repo includes [vercel.json](vercel.json) for static SPA routing.
+
+Set this Vercel env var:
+
+```env
+VITE_API_BASE_URL=https://<your-render-domain>
+```
+
+Then deploy with:
+- Build command: `npm run build`
+- Output directory: `dist`
+
+### 3. OAuth provider callbacks (production)
+
+Use your Render domain callbacks:
+- Google: `https://<your-render-domain>/api/auth/google/callback`
+- GitHub: `https://<your-render-domain>/api/auth/github/callback`
+
+### 4. Post-deploy health check
+
+- `GET https://<your-render-domain>/api/health/db` should return `{"provider":"...","connected":true}`
+- Login/register from Vercel UI should call Render APIs successfully
+- Upload + download should work without CORS errors
 
 ## Backend Structure
 

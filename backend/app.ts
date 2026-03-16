@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import type { AddressInfo } from "net";
 import net from "net";
 import path from "path";
@@ -57,6 +58,33 @@ export const startServer = async (): Promise<void> => {
   const app = express();
   const projectRoot = process.cwd();
   const distPath = path.join(projectRoot, "dist");
+  const indexHtmlPath = path.join(distPath, "index.html");
+  const allowedOrigins = new Set(env.corsOrigins);
+  const allowAllOrigins = allowedOrigins.has("*");
+
+  app.use((req, res, next) => {
+    const requestOrigin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+    const isAllowedOrigin = allowAllOrigins || (!!requestOrigin && allowedOrigins.has(requestOrigin));
+
+    if (allowAllOrigins) {
+      res.header("Access-Control-Allow-Origin", "*");
+    } else if (isAllowedOrigin && requestOrigin) {
+      res.header("Access-Control-Allow-Origin", requestOrigin);
+      res.header("Vary", "Origin");
+    }
+
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Authorization,Content-Type");
+    res.header("Access-Control-Expose-Headers", "Content-Disposition,Content-Type");
+
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
+
   app.use(express.json({ limit: "10mb" }));
   app.get("/api/health/db", (_req, res) => {
     res.json(getDatabaseHealth());
@@ -66,12 +94,23 @@ export const startServer = async (): Promise<void> => {
   app.use("/api/documents", documentsRoutes);
   app.use("/api/search", searchRoutes);
 
-  app.use("/uploads", authenticateToken, express.static("uploads"));
+  app.use("/uploads", authenticateToken, express.static(path.resolve(projectRoot, env.uploadDir)));
 
-  if (env.nodeEnv === "production") {
+  if (env.nodeEnv === "production" && fs.existsSync(indexHtmlPath)) {
     app.use(express.static(distPath));
     app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(indexHtmlPath);
+    });
+  } else if (env.nodeEnv === "production") {
+    console.warn(
+      "No frontend build found at dist/index.html. Starting in API-only mode for production deployment.",
+    );
+    app.get("/", (_req, res) => {
+      res.json({ status: "ok", service: "smartdoc-backend" });
+    });
+  } else {
+    app.get("/", (_req, res) => {
+      res.json({ status: "ok", service: "smartdoc-backend" });
     });
   }
 
@@ -83,8 +122,11 @@ export const startServer = async (): Promise<void> => {
     res.status(500).json({ error: "Internal server error" });
   });
 
-  const resolvedPort = await findAvailablePort(env.port, env.portSearchLimit);
-  if (resolvedPort !== env.port) {
+  const resolvedPort =
+    env.nodeEnv === "production"
+      ? env.port
+      : await findAvailablePort(env.port, env.portSearchLimit);
+  if (env.nodeEnv !== "production" && resolvedPort !== env.port) {
     console.warn(`Port ${env.port} is already in use. Using port ${resolvedPort} instead.`);
   }
 
