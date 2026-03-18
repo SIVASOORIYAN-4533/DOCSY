@@ -86,6 +86,7 @@ export const startServer = async (): Promise<void> => {
   });
 
   app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: false }));
   app.get("/api/health/db", (_req, res) => {
     res.json(getDatabaseHealth());
   });

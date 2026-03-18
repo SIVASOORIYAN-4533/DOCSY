@@ -7,6 +7,7 @@ const INITIAL_SCHEMA = `
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     role TEXT DEFAULT 'user',
+    phone TEXT,
     favourite_teacher TEXT,
     secured_password TEXT,
     profile_photo TEXT
@@ -101,6 +102,7 @@ export const runMigrations = (): void => {
   addColumn("users", "secured_password", "TEXT");
   addColumn("users", "profile_photo", "TEXT");
   addColumn("users", "favourite_teacher", "TEXT");
+  addColumn("users", "phone", "TEXT");
   addColumn("documents", "is_secured", "INTEGER DEFAULT 0");
   addColumn("documents", "content", "TEXT");
   addColumn("sharing", "created_at", "DATETIME");

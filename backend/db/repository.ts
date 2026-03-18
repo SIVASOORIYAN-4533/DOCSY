@@ -10,6 +10,7 @@ interface UserRecord {
   email: string;
   password: string;
   role: string;
+  phone?: string | null;
   favourite_teacher?: string | null;
   secured_password?: string | null;
   profile_photo?: string | null;
@@ -38,7 +39,7 @@ interface DocumentRecord {
 }
 
 let isMongoProvider = env.dbProvider === "mongodb";
-let sqliteUsersFavouriteTeacherColumnChecked = false;
+let sqliteUsersColumnsChecked = false;
 
 const counterSchema = new Schema(
   {
@@ -55,6 +56,7 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true, index: true },
     password: { type: String, required: true },
     role: { type: String, default: "user" },
+    phone: { type: String, default: null },
     favourite_teacher: { type: String, default: null },
     secured_password: { type: String, default: null },
     profile_photo: { type: String, default: null },
@@ -105,17 +107,22 @@ const escapeRegex = (value: string): string => {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
-const ensureUsersFavouriteTeacherColumn = (): void => {
-  if (isMongoProvider || sqliteUsersFavouriteTeacherColumnChecked) {
+const ensureUsersColumns = (): void => {
+  if (isMongoProvider || sqliteUsersColumnsChecked) {
     return;
   }
 
   try {
     const columns = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     const hasFavouriteTeacher = columns.some((column) => column.name === "favourite_teacher");
+    const hasPhone = columns.some((column) => column.name === "phone");
 
     if (!hasFavouriteTeacher) {
       db.prepare("ALTER TABLE users ADD COLUMN favourite_teacher TEXT").run();
+    }
+
+    if (!hasPhone) {
+      db.prepare("ALTER TABLE users ADD COLUMN phone TEXT").run();
     }
   } catch (error) {
     const message = String((error as { message?: string } | undefined)?.message || "");
@@ -123,7 +130,7 @@ const ensureUsersFavouriteTeacherColumn = (): void => {
       throw error;
     }
   } finally {
-    sqliteUsersFavouriteTeacherColumnChecked = true;
+    sqliteUsersColumnsChecked = true;
   }
 };
 
@@ -188,6 +195,10 @@ export const initializeDatabase = async (): Promise<void> => {
         { $set: { favourite_teacher: null } },
       );
       await UserModel.updateMany(
+        { phone: { $exists: false } },
+        { $set: { phone: null } },
+      );
+      await UserModel.updateMany(
         { role: { $ne: "user" } },
         { $set: { role: "user" } },
       );
@@ -222,26 +233,30 @@ export const createUser = async (
   password: string,
   role: string,
   favouriteTeacher: string,
+  phone?: string,
 ): Promise<number> => {
   if (isMongoProvider) {
     const id = await getNextSequence("users");
+    const normalizedPhone = String(phone || "").trim();
     await UserModel.create({
       id,
       name,
       email,
       password,
       role,
+      phone: normalizedPhone || null,
       favourite_teacher: favouriteTeacher,
       profile_photo: null,
     });
     return id;
   }
 
-  ensureUsersFavouriteTeacherColumn();
+  ensureUsersColumns();
+  const normalizedPhone = String(phone || "").trim();
   const stmt = db.prepare(
-    "INSERT INTO users (name, email, password, role, favourite_teacher) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO users (name, email, password, role, favourite_teacher, phone) VALUES (?, ?, ?, ?, ?, ?)",
   );
-  const result = stmt.run(name, email, password, role || "user", favouriteTeacher);
+  const result = stmt.run(name, email, password, role || "user", favouriteTeacher, normalizedPhone || null);
   return Number(result.lastInsertRowid);
 };
 
@@ -264,6 +279,7 @@ export const findUserByEmail = async (email: string): Promise<UserRecord | null>
       email: user.email,
       password: user.password,
       role: user.role,
+      phone: user.phone ?? null,
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
       profile_photo: user.profile_photo ?? user.profilePhoto ?? null,
@@ -289,6 +305,7 @@ export const findUserById = async (userId: number): Promise<UserRecord | null> =
       email: user.email,
       password: user.password,
       role: user.role,
+      phone: user.phone ?? null,
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
       profile_photo: user.profile_photo ?? user.profilePhoto ?? null,
@@ -323,7 +340,7 @@ export const updateUserProfile = async (
   }
 
   if (favouriteTeacher) {
-    ensureUsersFavouriteTeacherColumn();
+    ensureUsersColumns();
     db.prepare("UPDATE users SET name = ?, email = ?, profile_photo = ?, favourite_teacher = ? WHERE id = ?")
       .run(name, email, profilePhoto, favouriteTeacher, userId);
     return;
