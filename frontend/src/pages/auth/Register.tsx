@@ -1,7 +1,8 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, User as UserIcon, Phone, FileText, ArrowLeft, GraduationCap } from "lucide-react";
+import { Mail, Lock, User as UserIcon, Phone, Chrome, ArrowLeft, GraduationCap, Eye, EyeOff } from "lucide-react";
 import { motion } from "motion/react";
+import { buildApiUrl } from "../../utils/api";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -14,7 +15,39 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [isGooglePrefill, setIsGooglePrefill] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const oauthEmail = (hashParams.get("oauth_email") ?? searchParams.get("oauth_email") ?? "").trim();
+    const oauthName = (hashParams.get("oauth_name") ?? searchParams.get("oauth_name") ?? "").trim();
+    const oauthProvider = (hashParams.get("oauth_provider") ?? searchParams.get("oauth_provider") ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (oauthProvider === "google" && oauthEmail) {
+      setFormData((prev) => ({
+        ...prev,
+        email: oauthEmail,
+        name: prev.name || oauthName || "",
+      }));
+      setIsGooglePrefill(true);
+      setInfo("Google account selected. Complete the remaining details to finish registration.");
+    }
+
+    if (oauthEmail || oauthName || oauthProvider) {
+      searchParams.delete("oauth_email");
+      searchParams.delete("oauth_name");
+      searchParams.delete("oauth_provider");
+      const query = searchParams.toString();
+      window.history.replaceState({}, "", query ? `/register?${query}` : "/register");
+    }
+  }, []);
 
   const parseJsonSafe = async (response: Response): Promise<Record<string, any>> => {
     const raw = await response.text();
@@ -31,12 +64,16 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
       return;
     }
-    
-    // Password validation
+
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,}$/;
     if (!passwordRegex.test(formData.password)) {
       setError("Password must be 8+ chars, with 1 number and 1 special char");
@@ -59,7 +96,7 @@ export default function Register() {
         const data = await parseJsonSafe(response);
         setError(data.error || "Registration failed");
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
@@ -68,13 +105,16 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-900 flex items-center justify-center p-6">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg"
       >
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl">
-          <Link to="/login" className="inline-flex items-center gap-2 text-indigo-300 hover:text-white transition-colors mb-6 text-sm font-medium">
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 text-indigo-300 hover:text-white transition-colors mb-6 text-sm font-medium"
+          >
             <ArrowLeft className="w-4 h-4" />
             Back to Login
           </Link>
@@ -90,6 +130,24 @@ export default function Register() {
                 {error}
               </div>
             )}
+            {info && (
+              <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 p-3 rounded-xl text-sm text-center">
+                {info}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = buildApiUrl("/api/auth/google");
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
+            >
+              <Chrome className="w-5 h-5" />
+              <span className="text-sm font-semibold">
+                {isGooglePrefill ? "Choose Different Google Account" : "Sign up with Google"}
+              </span>
+            </button>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2">
@@ -114,12 +172,16 @@ export default function Register() {
                   <input
                     type="email"
                     required
+                    readOnly={isGooglePrefill}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="john@example.com"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                    className={`w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none ${isGooglePrefill ? "opacity-90 cursor-not-allowed" : ""}`}
                   />
                 </div>
+                {isGooglePrefill && (
+                  <p className="text-xs text-indigo-300 ml-1">Email is locked to your selected Google account.</p>
+                )}
               </div>
             </div>
 
@@ -130,6 +192,7 @@ export default function Register() {
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
                   <input
                     type="tel"
+                    required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1 (555) 000-0000"
@@ -160,13 +223,20 @@ export default function Register() {
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="********"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-12 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 
@@ -175,13 +245,20 @@ export default function Register() {
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     required
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     placeholder="********"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-12 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-white transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -197,7 +274,9 @@ export default function Register() {
 
           <p className="mt-8 text-center text-indigo-200 text-sm">
             Already have an account?{" "}
-            <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-bold transition-colors">Login here</Link>
+            <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-bold transition-colors">
+              Login here
+            </Link>
           </p>
         </div>
       </motion.div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, Chrome, Github, ArrowLeft, GraduationCap } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Chrome, ArrowLeft, GraduationCap } from "lucide-react";
 import { User } from "../../types";
 import { motion } from "motion/react";
 import { buildApiUrl } from "../../utils/api";
@@ -366,27 +366,17 @@ export default function Login({ onLogin }: LoginProps) {
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-white/10"></div>
               </div>
-              <span className="relative px-4 bg-transparent text-xs text-indigo-300 uppercase tracking-widest font-bold">Or continue with</span>
+              <span className="relative px-4 bg-transparent text-xs text-indigo-300 uppercase tracking-widest font-bold">Or continue with Google</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => { window.location.href = buildApiUrl("/api/auth/google"); }}
-                className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
-              >
-                <Chrome className="w-5 h-5" />
-                <span className="text-sm font-medium">Google</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { window.location.href = buildApiUrl("/api/auth/github"); }}
-                className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
-              >
-                <Github className="w-5 h-5" />
-                <span className="text-sm font-medium">GitHub</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => { window.location.href = buildApiUrl("/api/auth/google"); }}
+              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl py-3 text-white transition-all active:scale-[0.98]"
+            >
+              <Chrome className="w-5 h-5" />
+              <span className="text-sm font-semibold">Sign in with Google</span>
+            </button>
           </div>}
 
           <p className="mt-8 text-center text-indigo-200 text-sm">
