@@ -263,7 +263,7 @@ router.post("/forgot-password/reset", async (req, res) => {
 
 router.get("/google", (req, res) => {
   if (!env.googleClientId) {
-    res.redirect(loginErrorUrl("Google sign-in is not configured on server"));
+    res.redirect(loginErrorUrl("Google sign-in is not configured (missing GOOGLE_CLIENT_ID)"));
     return;
   }
 

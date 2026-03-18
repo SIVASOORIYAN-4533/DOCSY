@@ -53,16 +53,24 @@ const parseOrigins = (value: string | undefined, fallback: string): string[] => 
   return [...new Set(resolved)];
 };
 
+const normalizeConfiguredUrl = (value: string | undefined, fallback: string): string => {
+  const normalized = normalizeOrigin(value ?? "");
+  if (normalized) {
+    return normalized;
+  }
+
+  return normalizeOrigin(fallback);
+};
+
 const inferredDbProvider =
   process.env.DB_PROVIDER ?? (process.env.MONGODB_URI || process.env.MONGO_URI ? "mongodb" : "sqlite");
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const port = parsePort(process.env.PORT, 5001);
-const oauthBaseUrl = process.env.OAUTH_BASE_URL ?? `http://localhost:${port}`;
+const oauthBaseUrl = normalizeConfiguredUrl(process.env.OAUTH_BASE_URL, `http://localhost:${port}`);
 const primaryCorsOrigin = (process.env.CORS_ORIGIN ?? "").split(",")[0] ?? "";
 const frontendFallbackUrl =
   nodeEnv === "production" ? normalizeOrigin(primaryCorsOrigin) || oauthBaseUrl : "http://localhost:5173";
-const frontendBaseUrl =
-  process.env.FRONTEND_BASE_URL ?? frontendFallbackUrl;
+const frontendBaseUrl = normalizeConfiguredUrl(process.env.FRONTEND_BASE_URL, frontendFallbackUrl);
 const mongodbUri = process.env.MONGODB_URI ?? process.env.MONGO_URI ?? "";
 const corsOrigins = parseOrigins(process.env.CORS_ORIGIN, frontendBaseUrl);
 

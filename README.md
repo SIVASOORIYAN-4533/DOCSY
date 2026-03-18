@@ -67,11 +67,17 @@ OAUTH_BASE_URL=http://localhost:5001
 FRONTEND_BASE_URL=http://localhost:5173
 
 GOOGLE_CLIENT_ID=your_google_client_id
+# Optional in current Google flow:
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 ```
+
+Notes:
+- `GOOGLE_CLIENT_ID` is required for Google sign-in.
+- `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` are required for GitHub sign-in.
+- Avoid trailing spaces/new lines in `FRONTEND_BASE_URL` and `OAUTH_BASE_URL`.
 
 Callback URLs to configure in providers:
 
@@ -98,14 +104,24 @@ OAUTH_BASE_URL=https://<your-render-domain>
 CORS_ORIGIN=https://<your-vercel-domain>
 ```
 
+If you want Google sign-in, set:
+
+```env
+GOOGLE_CLIENT_ID=<your-google-client-id>
+```
+
+If you want GitHub sign-in, set:
+
+```env
+GITHUB_CLIENT_ID=<your-github-client-id>
+GITHUB_CLIENT_SECRET=<your-github-client-secret>
+```
+
 Optional backend vars:
 
 ```env
 GEMINI_API_KEY=
-GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
 UPLOAD_DIR=uploads
 SQLITE_DB_PATH=smartdoc.db
 ```
@@ -119,6 +135,8 @@ Set this Vercel env var:
 ```env
 VITE_API_BASE_URL=https://<your-render-domain>
 ```
+
+Without `VITE_API_BASE_URL`, frontend `/api/*` calls stay on the Vercel domain and OAuth/login will fail.
 
 Then deploy with:
 - Build command: `npm run build`
