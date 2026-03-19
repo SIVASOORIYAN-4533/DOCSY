@@ -33,3 +33,15 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
 }
+
+export interface NotificationItem {
+  id: number;
+  user_id: number;
+  actor_id: number | null;
+  doc_id: number | null;
+  type: string;
+  message: string;
+  link: string;
+  is_read: boolean;
+  created_at: string;
+}

@@ -41,11 +41,26 @@ const INITIAL_SCHEMA = `
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    actor_id INTEGER,
+    doc_id INTEGER,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    link TEXT DEFAULT '/shared',
+    is_read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
   CREATE INDEX IF NOT EXISTS idx_documents_upload_date ON documents(upload_date);
   CREATE INDEX IF NOT EXISTS idx_documents_is_secured ON documents(is_secured);
   CREATE INDEX IF NOT EXISTS idx_sharing_doc_id ON sharing(doc_id);
   CREATE INDEX IF NOT EXISTS idx_sharing_user_id ON sharing(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+  CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 `;
 
 const hasColumn = (table: string, column: string): boolean => {
@@ -107,6 +122,13 @@ export const runMigrations = (): void => {
   addColumn("documents", "content", "TEXT");
   addColumn("sharing", "created_at", "DATETIME");
   addColumn("sharing", "status", "TEXT DEFAULT 'accepted'");
+  addColumn("notifications", "actor_id", "INTEGER");
+  addColumn("notifications", "doc_id", "INTEGER");
+  addColumn("notifications", "type", "TEXT DEFAULT 'share_update'");
+  addColumn("notifications", "message", "TEXT DEFAULT ''");
+  addColumn("notifications", "link", "TEXT DEFAULT '/shared'");
+  addColumn("notifications", "is_read", "INTEGER DEFAULT 0");
+  addColumn("notifications", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP");
 
   // Backfill created_at for older databases where the column was added later.
   if (hasColumn("sharing", "created_at")) {
@@ -115,5 +137,21 @@ export const runMigrations = (): void => {
 
   if (hasColumn("sharing", "status")) {
     db.prepare("UPDATE sharing SET status = 'accepted' WHERE status IS NULL").run();
+  }
+
+  if (hasColumn("notifications", "is_read")) {
+    db.prepare("UPDATE notifications SET is_read = 0 WHERE is_read IS NULL").run();
+  }
+
+  if (hasColumn("notifications", "link")) {
+    db.prepare("UPDATE notifications SET link = '/shared' WHERE link IS NULL OR TRIM(link) = ''").run();
+  }
+
+  if (hasColumn("notifications", "type")) {
+    db.prepare("UPDATE notifications SET type = 'share_update' WHERE type IS NULL OR TRIM(type) = ''").run();
+  }
+
+  if (hasColumn("notifications", "created_at")) {
+    db.prepare("UPDATE notifications SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL").run();
   }
 };

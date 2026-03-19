@@ -1,6 +1,7 @@
 import fs from "fs";
 import { Router } from "express";
 import {
+  createNotification,
   createSharingRequest,
   createDocument,
   deleteDocument,
@@ -17,6 +18,7 @@ import {
 import { authenticateToken } from "../middleware/auth";
 import { upload } from "../middleware/upload";
 import { processDocumentWithAI } from "../services/aiProcessing";
+import { pushRealtimeEventToUser } from "../services/realtime";
 
 const router = Router();
 
@@ -132,6 +134,20 @@ router.post("/share-upload", authenticateToken, upload.single("file"), async (re
   await createSharingRequest(docId, recipient.id, "view");
   void processDocumentWithAI(docId, file.path, file.mimetype);
 
+  try {
+    const notification = await createNotification({
+      userId: recipient.id,
+      actorId: req.user.id,
+      docId,
+      type: "share_request",
+      message: `${req.user.name} (${req.user.email}) shared "${String(title || file.originalname)}" with you.`,
+      link: "/shared",
+    });
+    pushRealtimeEventToUser(recipient.id, "notification.created", { notification });
+  } catch (error) {
+    console.error("Failed to notify share-upload recipient:", error);
+  }
+
   res.status(201).json({ success: true, id: docId });
 });
 
@@ -209,6 +225,20 @@ router.post("/:id/share", authenticateToken, async (req, res) => {
 
   await createSharingRequest(docId, targetUser.id, permission || "view");
 
+  try {
+    const notification = await createNotification({
+      userId: targetUser.id,
+      actorId: req.user.id,
+      docId,
+      type: "share_request",
+      message: `${req.user.name} (${req.user.email}) shared "${doc.title}" with you.`,
+      link: "/shared",
+    });
+    pushRealtimeEventToUser(targetUser.id, "notification.created", { notification });
+  } catch (error) {
+    console.error("Failed to notify share recipient:", error);
+  }
+
   res.json({ success: true, pending: true });
 });
 
@@ -274,10 +304,32 @@ router.post("/:id/shared-request/accept", authenticateToken, async (req, res) =>
     return;
   }
 
+  const doc = await getDocumentById(docId);
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
   const updated = await updateSharingStatus(docId, req.user.id, "accepted");
   if (!updated) {
     res.status(404).json({ error: "Share request not found" });
     return;
+  }
+
+  if (doc.user_id !== req.user.id) {
+    try {
+      const notification = await createNotification({
+        userId: doc.user_id,
+        actorId: req.user.id,
+        docId,
+        type: "share_response",
+        message: `${req.user.name} (${req.user.email}) accepted "${doc.title}".`,
+        link: "/shared",
+      });
+      pushRealtimeEventToUser(doc.user_id, "notification.created", { notification });
+    } catch (error) {
+      console.error("Failed to notify document owner about acceptance:", error);
+    }
   }
 
   res.json({ success: true });
@@ -295,10 +347,32 @@ router.post("/:id/shared-request/decline", authenticateToken, async (req, res) =
     return;
   }
 
+  const doc = await getDocumentById(docId);
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
   const updated = await updateSharingStatus(docId, req.user.id, "declined");
   if (!updated) {
     res.status(404).json({ error: "Share request not found" });
     return;
+  }
+
+  if (doc.user_id !== req.user.id) {
+    try {
+      const notification = await createNotification({
+        userId: doc.user_id,
+        actorId: req.user.id,
+        docId,
+        type: "share_response",
+        message: `${req.user.name} (${req.user.email}) declined "${doc.title}".`,
+        link: "/shared",
+      });
+      pushRealtimeEventToUser(doc.user_id, "notification.created", { notification });
+    } catch (error) {
+      console.error("Failed to notify document owner about decline:", error);
+    }
   }
 
   res.json({ success: true });

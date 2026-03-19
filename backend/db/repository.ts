@@ -38,6 +38,18 @@ interface DocumentRecord {
   shared_to_email?: string;
 }
 
+export interface NotificationRecord {
+  id: number;
+  user_id: number;
+  actor_id: number | null;
+  doc_id: number | null;
+  type: string;
+  message: string;
+  link: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 let isMongoProvider = env.dbProvider === "mongodb";
 let sqliteUsersColumnsChecked = false;
 
@@ -95,6 +107,21 @@ const sharingSchema = new Schema(
   { versionKey: false },
 );
 
+const notificationSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true, index: true },
+    user_id: { type: Number, required: true, index: true },
+    actor_id: { type: Number, default: null },
+    doc_id: { type: Number, default: null },
+    type: { type: String, required: true },
+    message: { type: String, required: true },
+    link: { type: String, default: "/shared" },
+    is_read: { type: Boolean, default: false, index: true },
+    created_at: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+
 const CounterModel: any =
   (mongoose.models.Counter as any) || mongoose.model("Counter", counterSchema, "counters");
 const UserModel: any = (mongoose.models.User as any) || mongoose.model("User", userSchema, "users");
@@ -102,6 +129,8 @@ const DocumentModel: any =
   (mongoose.models.Document as any) || mongoose.model("Document", documentSchema, "documents");
 const SharingModel: any =
   (mongoose.models.Sharing as any) || mongoose.model("Sharing", sharingSchema, "sharing");
+const NotificationModel: any =
+  (mongoose.models.Notification as any) || mongoose.model("Notification", notificationSchema, "notifications");
 
 const escapeRegex = (value: string): string => {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -170,6 +199,7 @@ const ensureMongoIndexes = async (): Promise<void> => {
     UserModel.createIndexes(),
     DocumentModel.createIndexes(),
     SharingModel.createIndexes(),
+    NotificationModel.createIndexes(),
   ]);
 };
 
@@ -184,6 +214,24 @@ const mapDocumentsWithUploader = async (docs: any[]): Promise<DocumentRecord[]> 
     ...normalizeDocument(doc),
     uploaded_by: nameByUserId.get(Number(doc.user_id)) ?? "Unknown",
   }));
+};
+
+const normalizeNotification = (row: any): NotificationRecord => {
+  const createdAtRaw = row?.created_at;
+  const createdAt =
+    createdAtRaw instanceof Date ? createdAtRaw.toISOString() : String(createdAtRaw ?? new Date().toISOString());
+
+  return {
+    id: Number(row?.id),
+    user_id: Number(row?.user_id),
+    actor_id: row?.actor_id === null || row?.actor_id === undefined ? null : Number(row.actor_id),
+    doc_id: row?.doc_id === null || row?.doc_id === undefined ? null : Number(row.doc_id),
+    type: String(row?.type || "share_update"),
+    message: String(row?.message || ""),
+    link: String(row?.link || "/shared"),
+    is_read: typeof row?.is_read === "boolean" ? row.is_read : Number(row?.is_read ?? 0) === 1,
+    created_at: createdAt,
+  };
 };
 
 export const initializeDatabase = async (): Promise<void> => {
@@ -700,6 +748,126 @@ export const updateSharingStatus = async (
   const result = db.prepare("UPDATE sharing SET status = ? WHERE doc_id = ? AND user_id = ?")
     .run(status, docId, userId);
   return Number(result.changes ?? 0) > 0;
+};
+
+export const createNotification = async (input: {
+  userId: number;
+  actorId?: number | null;
+  docId?: number | null;
+  type: string;
+  message: string;
+  link?: string;
+}): Promise<NotificationRecord> => {
+  const sanitizedMessage = String(input.message || "").trim();
+  const sanitizedType = String(input.type || "").trim();
+  if (!sanitizedMessage || !sanitizedType) {
+    throw new Error("Notification message and type are required.");
+  }
+
+  if (isMongoProvider) {
+    const id = await getNextSequence("notifications");
+    const created = await NotificationModel.create({
+      id,
+      user_id: input.userId,
+      actor_id: input.actorId ?? null,
+      doc_id: input.docId ?? null,
+      type: sanitizedType,
+      message: sanitizedMessage,
+      link: input.link || "/shared",
+      is_read: false,
+      created_at: new Date(),
+    });
+
+    return normalizeNotification(created.toObject ? created.toObject() : created);
+  }
+
+  const result = db.prepare(
+    `
+      INSERT INTO notifications (user_id, actor_id, doc_id, type, message, link, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+    `,
+  ).run(
+    input.userId,
+    input.actorId ?? null,
+    input.docId ?? null,
+    sanitizedType,
+    sanitizedMessage,
+    input.link || "/shared",
+  );
+
+  const inserted = db
+    .prepare("SELECT * FROM notifications WHERE id = ?")
+    .get(Number(result.lastInsertRowid));
+  return normalizeNotification(inserted);
+};
+
+export const getNotificationsForUser = async (
+  userId: number,
+  limit = 20,
+): Promise<NotificationRecord[]> => {
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 100) : 20;
+
+  if (isMongoProvider) {
+    const rows = await NotificationModel.find({ user_id: userId })
+      .sort({ created_at: -1, id: -1 })
+      .limit(safeLimit)
+      .lean();
+    return rows.map((row: any) => normalizeNotification(row));
+  }
+
+  const rows = db
+    .prepare(
+      `
+      SELECT *
+      FROM notifications
+      WHERE user_id = ?
+      ORDER BY datetime(created_at) DESC, id DESC
+      LIMIT ?
+    `,
+    )
+    .all(userId, safeLimit);
+  return (rows as any[]).map((row) => normalizeNotification(row));
+};
+
+export const getUnreadNotificationCount = async (userId: number): Promise<number> => {
+  if (isMongoProvider) {
+    return Number(await NotificationModel.countDocuments({ user_id: userId, is_read: false }));
+  }
+
+  const row = db
+    .prepare("SELECT COUNT(*) as total FROM notifications WHERE user_id = ? AND is_read = 0")
+    .get(userId) as { total: number } | undefined;
+  return Number(row?.total ?? 0);
+};
+
+export const markNotificationAsRead = async (notificationId: number, userId: number): Promise<boolean> => {
+  if (isMongoProvider) {
+    const result = await NotificationModel.updateOne(
+      { id: notificationId, user_id: userId },
+      { $set: { is_read: true } },
+    );
+    return Number(result.modifiedCount ?? 0) > 0;
+  }
+
+  const result = db
+    .prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?")
+    .run(notificationId, userId);
+  return Number(result.changes ?? 0) > 0;
+};
+
+export const markAllNotificationsAsRead = async (userId: number): Promise<number> => {
+  if (isMongoProvider) {
+    const result = await NotificationModel.updateMany(
+      { user_id: userId, is_read: false },
+      { $set: { is_read: true } },
+    );
+    return Number(result.modifiedCount ?? 0);
+  }
+
+  const result = db
+    .prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0")
+    .run(userId);
+  return Number(result.changes ?? 0);
 };
 
 export const removeSharingForUser = async (docId: number, userId: number): Promise<boolean> => {

@@ -8,6 +8,7 @@ import { getDatabaseHealth, initializeDatabase } from "./db/repository";
 import { authenticateToken } from "./middleware/auth";
 import authRoutes from "./routes/auth";
 import documentsRoutes from "./routes/documents";
+import notificationsRoutes from "./routes/notifications";
 import searchRoutes from "./routes/search";
 
 const canUsePort = (port: number): Promise<boolean> => {
@@ -93,6 +94,7 @@ export const startServer = async (): Promise<void> => {
 
   app.use("/api/auth", authRoutes);
   app.use("/api/documents", documentsRoutes);
+  app.use("/api/notifications", notificationsRoutes);
   app.use("/api/search", searchRoutes);
 
   app.use("/uploads", authenticateToken, express.static(path.resolve(projectRoot, env.uploadDir)));
