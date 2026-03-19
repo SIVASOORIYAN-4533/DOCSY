@@ -17,6 +17,7 @@ import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { getAuthToken } from "../../utils/authStorage";
 import { apiHtmlFallbackError, isHtmlResponse } from "../../utils/api";
+import { canPreviewInBrowser, getOpenWithApps } from "../../utils/fileOpenWith";
 
 interface MyDocumentsProps {
   user: User;
@@ -30,12 +31,16 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [openWithDoc, setOpenWithDoc] = useState<Document | null>(null);
   const [shareDoc, setShareDoc] = useState<Document | null>(null);
   const [shareEmail, setShareEmail] = useState("");
   const [sharing, setSharing] = useState(false);
   const [shareResult, setShareResult] = useState("");
   const [error, setError] = useState("");
   const canShareDocument = (doc: Document): boolean => doc.user_id === user.id;
+  const isOwnUpload = (doc: Document): boolean => doc.user_id === user.id;
+  const suggestedApps = openWithDoc ? getOpenWithApps(openWithDoc.mime_type, openWithDoc.title) : [];
+  const canOpenInBrowser = openWithDoc ? canPreviewInBrowser(openWithDoc.mime_type, openWithDoc.title) : true;
 
   useEffect(() => {
     fetchDocs();
@@ -108,7 +113,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     }
   };
 
-  const handleView = async (doc: Document) => {
+  const openInBrowser = async (doc: Document) => {
     setError("");
     try {
       const response = await fetch(`/api/documents/${doc.id}/view`, {
@@ -128,6 +133,31 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       console.error(err);
       setError((err as Error)?.message || "Unable to view this document.");
     }
+  };
+
+  const handleView = (doc: Document) => {
+    setError("");
+    if (isOwnUpload(doc)) {
+      setOpenWithDoc(doc);
+      return;
+    }
+    void openInBrowser(doc);
+  };
+
+  const handleOpenWithSelection = (mode: "browser" | "device") => {
+    if (!openWithDoc) {
+      return;
+    }
+
+    const targetDoc = openWithDoc;
+    setOpenWithDoc(null);
+
+    if (mode === "browser") {
+      void openInBrowser(targetDoc);
+      return;
+    }
+
+    void handleDownload(targetDoc);
   };
 
   const handleShare = async (e: React.FormEvent) => {
@@ -371,6 +401,62 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
       {/* Sharing Modal */}
       <AnimatePresence>
+        {openWithDoc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOpenWithDoc(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Open With</h3>
+                <button
+                  onClick={() => setOpenWithDoc(null)}
+                  className="p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Choose how to open <span className="font-bold">{openWithDoc.title}</span>.
+                </p>
+
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recommended apps</p>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{suggestedApps.join(", ")}</p>
+                </div>
+
+                {canOpenInBrowser ? (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenWithSelection("browser")}
+                    className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all"
+                  >
+                    Open In Browser
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenWithSelection("device")}
+                  className="w-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold py-3 rounded-xl hover:opacity-90 transition-all"
+                >
+                  Download & Open On Device
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {shareDoc && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div
