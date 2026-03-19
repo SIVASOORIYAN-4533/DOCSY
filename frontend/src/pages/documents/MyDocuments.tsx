@@ -363,7 +363,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
-                    All Types
+                    General
                   </button>
                   {availableFileTypes.map((type) => (
                     <button
