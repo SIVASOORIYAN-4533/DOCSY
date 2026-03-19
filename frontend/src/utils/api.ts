@@ -35,6 +35,14 @@ export const buildApiUrl = (value: string): string => {
   return `${normalizedApiBaseUrl}${normalizePath(value)}`;
 };
 
+export const isHtmlResponse = (response: Response): boolean => {
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  return contentType.includes("text/html");
+};
+
+export const apiHtmlFallbackError =
+  "Server returned HTML instead of file data. Set VITE_API_BASE_URL to your deployed backend URL and redeploy.";
+
 export const installApiFetchPatch = (): void => {
   if (typeof window === "undefined") {
     return;

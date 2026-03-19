@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Document, User } from "../../types";
 import { AnimatePresence, motion } from "motion/react";
 import { getAuthToken } from "../../utils/authStorage";
+import { apiHtmlFallbackError, isHtmlResponse } from "../../utils/api";
 
 interface SharedFilesProps {
   user: User;
@@ -184,6 +185,9 @@ export default function SharedFiles({ user }: SharedFilesProps) {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (isHtmlResponse(response)) {
+        throw new Error(apiHtmlFallbackError);
+      }
       if (!response.ok) {
         const data = await parseJsonSafe(response);
         throw new Error(data.error || "Unable to download this file.");
@@ -207,6 +211,9 @@ export default function SharedFiles({ user }: SharedFilesProps) {
       const response = await fetch(`/api/documents/${doc.id}/view`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (isHtmlResponse(response)) {
+        throw new Error(apiHtmlFallbackError);
+      }
       if (!response.ok) {
         const data = await parseJsonSafe(response);
         throw new Error(data.error || "Unable to view this file.");

@@ -15,6 +15,7 @@ import {
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { getAuthToken } from "../../utils/authStorage";
+import { apiHtmlFallbackError, isHtmlResponse } from "../../utils/api";
 
 interface SecuredDocumentsProps {
   user: User;
@@ -126,10 +127,14 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
   };
 
   const handleDownload = async (doc: Document) => {
+    setError("");
     try {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
+      if (isHtmlResponse(response)) {
+        throw new Error(apiHtmlFallbackError);
+      }
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -139,9 +144,12 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         document.body.appendChild(a);
         a.click();
         a.remove();
+      } else {
+        setError("Unable to download this document.");
       }
     } catch (err) {
       console.error(err);
+      setError((err as Error)?.message || "Unable to download this document.");
     }
   };
 

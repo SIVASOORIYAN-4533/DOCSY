@@ -16,6 +16,7 @@ import {
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 import { getAuthToken } from "../../utils/authStorage";
+import { apiHtmlFallbackError, isHtmlResponse } from "../../utils/api";
 
 interface MyDocumentsProps {
   user: User;
@@ -33,6 +34,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const [shareEmail, setShareEmail] = useState("");
   const [sharing, setSharing] = useState(false);
   const [shareResult, setShareResult] = useState("");
+  const [error, setError] = useState("");
   const canShareDocument = (doc: Document): boolean => doc.user_id === user.id;
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
   const fetchDocs = async () => {
     setLoading(true);
+    setError("");
     try {
       const response = await fetch("/api/documents", {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
@@ -48,9 +51,12 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       if (response.ok) {
         const data = await response.json();
         setDocs(data);
+      } else {
+        setError("Unable to load documents.");
       }
     } catch (err) {
       console.error(err);
+      setError("Unable to load documents.");
     } finally {
       setLoading(false);
     }
@@ -58,6 +64,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this document?")) return;
+    setError("");
     try {
       const response = await fetch(`/api/documents/${id}`, {
         method: "DELETE",
@@ -65,17 +72,24 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       });
       if (response.ok) {
         setDocs((prev) => prev.filter((d) => d.id !== id));
+      } else {
+        setError("Unable to delete this document.");
       }
     } catch (err) {
       console.error(err);
+      setError("Unable to delete this document.");
     }
   };
 
   const handleDownload = async (doc: Document) => {
+    setError("");
     try {
       const response = await fetch(`/api/documents/${doc.id}/download`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
+      if (isHtmlResponse(response)) {
+        throw new Error(apiHtmlFallbackError);
+      }
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -85,30 +99,41 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
         document.body.appendChild(a);
         a.click();
         a.remove();
+      } else {
+        setError("Unable to download this document.");
       }
     } catch (err) {
       console.error(err);
+      setError((err as Error)?.message || "Unable to download this document.");
     }
   };
 
   const handleView = async (doc: Document) => {
+    setError("");
     try {
       const response = await fetch(`/api/documents/${doc.id}/view`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
+      if (isHtmlResponse(response)) {
+        throw new Error(apiHtmlFallbackError);
+      }
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        setError("Unable to view this document.");
       }
     } catch (err) {
       console.error(err);
+      setError((err as Error)?.message || "Unable to view this document.");
     }
   };
 
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shareDoc || !shareEmail) return;
+    setError("");
     if (!canShareDocument(shareDoc)) {
       setShareResult("You can share only your own documents.");
       return;
@@ -205,6 +230,11 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       {shareResult && (
         <div className="px-4 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium border border-indigo-100 dark:border-indigo-800/70">
           {shareResult}
+        </div>
+      )}
+      {error && (
+        <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium border border-red-100 dark:border-red-800/70">
+          {error}
         </div>
       )}
 
