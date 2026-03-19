@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Files, 
   Eye, 
@@ -22,12 +22,57 @@ interface MyDocumentsProps {
   user: User;
 }
 
+type SortBy = "date_desc" | "date_asc" | "name_asc" | "size_desc";
+
+const getFileExtension = (title: string): string => {
+  const trimmed = String(title || "").trim().toLowerCase();
+  const dotIndex = trimmed.lastIndexOf(".");
+  return dotIndex >= 0 ? trimmed.slice(dotIndex + 1) : "";
+};
+
+const getDocumentType = (doc: Document): string => {
+  const mime = String(doc.mime_type || "").toLowerCase();
+  const ext = getFileExtension(doc.title);
+
+  if (mime === "application/pdf" || ext === "pdf") {
+    return "pdf";
+  }
+
+  if (mime.startsWith("image/")) {
+    return ext || "image";
+  }
+
+  if (mime.includes("word") || ["doc", "docx"].includes(ext)) {
+    return "word";
+  }
+
+  if (mime.startsWith("text/") || ["txt", "md", "rtf"].includes(ext)) {
+    return "text";
+  }
+
+  if (ext) {
+    return ext;
+  }
+
+  if (mime.includes("/")) {
+    return mime.split("/")[1] || "file";
+  }
+
+  return "file";
+};
+
+const formatTypeLabel = (type: string): string => {
+  return type.toUpperCase();
+};
+
 export default function MyDocuments({ user }: MyDocumentsProps) {
   const PAGE_SIZE = 8;
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [sortBy, setSortBy] = useState<SortBy>("date_desc");
+  const [selectedFileType, setSelectedFileType] = useState("all");
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [shareDoc, setShareDoc] = useState<Document | null>(null);
@@ -35,6 +80,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const [sharing, setSharing] = useState(false);
   const [shareResult, setShareResult] = useState("");
   const [error, setError] = useState("");
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const canShareDocument = (doc: Document): boolean => doc.user_id === user.id;
 
   useEffect(() => {
@@ -171,17 +217,46 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     }
   };
 
-  const filteredDocs = docs
-    .filter((doc) =>
-      doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.tags?.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
-    .sort((a, b) => {
+  const availableFileTypes = useMemo(() => {
+    const allTypes = docs.map((doc) => getDocumentType(doc));
+    return [...new Set(allTypes)].sort((a, b) => a.localeCompare(b));
+  }, [docs]);
+
+  const filteredDocs = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    const visibleDocs = docs.filter((doc) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        doc.title.toLowerCase().includes(normalizedSearch) ||
+        doc.category?.toLowerCase().includes(normalizedSearch) ||
+        doc.tags?.toLowerCase().includes(normalizedSearch);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      if (selectedFileType === "all") {
+        return true;
+      }
+
+      return getDocumentType(doc) === selectedFileType;
+    });
+
+    return visibleDocs.sort((a, b) => {
+      if (sortBy === "name_asc") {
+        return a.title.localeCompare(b.title);
+      }
+
+      if (sortBy === "size_desc") {
+        return b.size - a.size;
+      }
+
       const aDate = new Date(a.upload_date).getTime();
       const bDate = new Date(b.upload_date).getTime();
-      return sortOrder === "newest" ? bDate - aDate : aDate - bDate;
+      return sortBy === "date_asc" ? aDate - bDate : bDate - aDate;
     });
+  }, [docs, searchTerm, sortBy, selectedFileType]);
 
   const totalPages = Math.max(1, Math.ceil(filteredDocs.length / PAGE_SIZE));
   const currentPageSafe = Math.min(currentPage, totalPages);
@@ -195,6 +270,25 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (selectedFileType !== "all" && !availableFileTypes.includes(selectedFileType)) {
+      setSelectedFileType("all");
+    }
+  }, [availableFileTypes, selectedFileType]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   return (
     <div className="space-y-8 text-slate-900 dark:text-slate-100">
@@ -218,16 +312,80 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
-          <button
-            onClick={() => {
-              setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"));
-              setCurrentPage(1);
-            }}
-            className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            title={`Sort: ${sortOrder}`}
-          >
-            <Filter className="w-5 h-5" />
-          </button>
+          <div ref={filterMenuRef} className="relative">
+            <button
+              onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+              className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              title="Sort and filter"
+            >
+              <Filter className="w-5 h-5" />
+            </button>
+
+            {isFilterMenuOpen && (
+              <div className="absolute right-0 mt-2 w-72 z-30 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sort By</p>
+                  {[
+                    { value: "name_asc" as SortBy, label: "Name (A-Z)" },
+                    { value: "date_desc" as SortBy, label: "Date (Newest)" },
+                    { value: "date_asc" as SortBy, label: "Date (Oldest)" },
+                    { value: "size_desc" as SortBy, label: "File Size (Largest)" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setSortBy(option.value);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        sortBy === option.value
+                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">File Type</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFileType("all");
+                      setCurrentPage(1);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                      selectedFileType === "all"
+                        ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    All Types
+                  </button>
+                  {availableFileTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFileType(type);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        selectedFileType === type
+                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {formatTypeLabel(type)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
