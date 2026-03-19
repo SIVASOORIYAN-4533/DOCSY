@@ -56,31 +56,14 @@ export default function Navbar({ user }: NavbarProps) {
       }
 
       const items = Array.isArray(data?.items) ? (data.items as NotificationItem[]) : [];
-      setNotifications(items);
-      setUnreadCount(Number(data?.unreadCount ?? items.filter((item) => !item.is_read).length));
+      const unreadItems = items.filter((item) => !item.is_read);
+      setNotifications(unreadItems);
+      setUnreadCount(unreadItems.length);
     } catch (error) {
       console.error("Failed to load notifications:", error);
     } finally {
       setIsLoadingNotifications(false);
     }
-  };
-
-  const markAllRead = async () => {
-    if (!token) {
-      return;
-    }
-
-    try {
-      await fetch("/api/notifications/read-all", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch (error) {
-      console.error("Failed to mark notifications as read:", error);
-    }
-
-    setNotifications((current) => current.map((item) => ({ ...item, is_read: true })));
-    setUnreadCount(0);
   };
 
   const markSingleAsRead = async (notificationId: number) => {
@@ -118,13 +101,15 @@ export default function Navbar({ user }: NavbarProps) {
           return;
         }
 
+        let inserted = false;
         setNotifications((current) => {
           if (current.some((item) => item.id === notification.id)) {
             return current;
           }
+          inserted = true;
           return [notification, ...current].slice(0, 50);
         });
-        if (!notification.is_read) {
+        if (!notification.is_read && inserted) {
           setUnreadCount((count) => count + 1);
         }
 
@@ -170,12 +155,6 @@ export default function Navbar({ user }: NavbarProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (isNotificationsOpen && unreadCount > 0) {
-      void markAllRead();
-    }
-  }, [isNotificationsOpen]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (search.trim()) {
@@ -191,19 +170,15 @@ export default function Navbar({ user }: NavbarProps) {
     setIsNotificationsOpen((current) => !current);
   };
 
-  const handleNotificationClick = async (item: NotificationItem) => {
-    if (!item.is_read) {
-      setNotifications((current) =>
-        current.map((existing) =>
-          existing.id === item.id ? { ...existing, is_read: true } : existing,
-        ),
-      );
-      setUnreadCount((count) => Math.max(0, count - 1));
-      void markSingleAsRead(item.id);
-    }
-
+  const handleNotificationClick = (item: NotificationItem) => {
     setIsNotificationsOpen(false);
     navigate(item.link || "/shared");
+  };
+
+  const handleMarkAsRead = (item: NotificationItem) => {
+    setNotifications((current) => current.filter((existing) => existing.id !== item.id));
+    setUnreadCount((count) => Math.max(0, count - 1));
+    void markSingleAsRead(item.id);
   };
 
   return (
@@ -254,19 +229,30 @@ export default function Navbar({ user }: NavbarProps) {
                   <div className="px-4 py-6 text-xs text-slate-500 dark:text-slate-300">No notifications yet.</div>
                 ) : (
                   notifications.map((item) => (
-                    <button
-                      type="button"
+                    <div
                       key={item.id}
-                      onClick={() => void handleNotificationClick(item)}
-                      className={`w-full text-left px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors ${
-                        item.is_read ? "bg-white dark:bg-slate-800" : "bg-indigo-50/70 dark:bg-indigo-900/20"
-                      }`}
+                      className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-b-0 bg-indigo-50/70 dark:bg-indigo-900/20"
                     >
-                      <p className="text-sm text-slate-700 dark:text-slate-200">{item.message}</p>
-                      <p className="text-[11px] mt-1 text-slate-500 dark:text-slate-400">
-                        {new Date(item.created_at).toLocaleString()}
-                      </p>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNotificationClick(item)}
+                        className="w-full text-left hover:opacity-90 transition-opacity"
+                      >
+                        <p className="text-sm text-slate-700 dark:text-slate-200">{item.message}</p>
+                        <p className="text-[11px] mt-1 text-slate-500 dark:text-slate-400">
+                          {new Date(item.created_at).toLocaleString()}
+                        </p>
+                      </button>
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleMarkAsRead(item)}
+                          className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline"
+                        >
+                          Mark as read
+                        </button>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>

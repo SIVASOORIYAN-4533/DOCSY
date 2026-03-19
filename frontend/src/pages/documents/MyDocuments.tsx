@@ -22,7 +22,7 @@ interface MyDocumentsProps {
   user: User;
 }
 
-type SortBy = "date_desc" | "date_asc" | "name_asc" | "size_desc";
+type SortBy = "general" | "date_desc" | "date_asc" | "name_asc" | "size_desc";
 
 const getFileExtension = (title: string): string => {
   const trimmed = String(title || "").trim().toLowerCase();
@@ -70,7 +70,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<SortBy>("date_desc");
+  const [sortBy, setSortBy] = useState<SortBy>("general");
   const [selectedFileType, setSelectedFileType] = useState("all");
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -243,6 +243,10 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       return getDocumentType(doc) === selectedFileType;
     });
 
+    if (sortBy === "general") {
+      return visibleDocs;
+    }
+
     return visibleDocs.sort((a, b) => {
       if (sortBy === "name_asc") {
         return a.title.localeCompare(b.title);
@@ -326,6 +330,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
                 <div className="space-y-2">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sort By</p>
                   {[
+                    { value: "general" as SortBy, label: "General" },
                     { value: "name_asc" as SortBy, label: "Name (A-Z)" },
                     { value: "date_desc" as SortBy, label: "Date (Newest)" },
                     { value: "date_asc" as SortBy, label: "Date (Oldest)" },
