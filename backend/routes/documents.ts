@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { Router } from "express";
 import {
   createNotification,
@@ -13,8 +14,10 @@ import {
   getVisibleDocuments,
   isDocumentSharedWithUser,
   removeSharingForUser,
+  updateDocumentAIFields,
   updateSharingStatus,
 } from "../db/repository";
+import { env } from "../config/env";
 import { authenticateToken } from "../middleware/auth";
 import { upload } from "../middleware/upload";
 import { processDocumentWithAI } from "../services/aiProcessing";
@@ -240,6 +243,83 @@ router.post("/:id/share", authenticateToken, async (req, res) => {
   }
 
   res.json({ success: true, pending: true });
+});
+
+router.post("/:id/copy-to-my-documents", authenticateToken, async (req, res) => {
+  if (!req.user) {
+    res.sendStatus(401);
+    return;
+  }
+
+  const docId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(docId)) {
+    res.status(400).json({ error: "Invalid document id" });
+    return;
+  }
+
+  const sourceDoc = await getDocumentById(docId);
+  if (!sourceDoc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
+  if (sourceDoc.user_id === req.user.id) {
+    res.json({ success: true, id: sourceDoc.id, alreadyOwned: true });
+    return;
+  }
+
+  const isShared = await isDocumentSharedWithUser(docId, req.user.id);
+  if (!isShared) {
+    res.status(403).json({ error: "You do not have access to this shared file." });
+    return;
+  }
+
+  if (!fs.existsSync(sourceDoc.file_path)) {
+    res.status(404).json({ error: "Source file not found on server." });
+    return;
+  }
+
+  const uploadsRoot = path.resolve(process.cwd(), env.uploadDir);
+  const safeTitle = String(sourceDoc.title || "document").replace(/[^\w.-]/g, "_");
+  const copiedFileName = `${Date.now()}-${req.user.id}-${safeTitle}`;
+  const copiedFilePath = path.join(uploadsRoot, copiedFileName);
+
+  try {
+    fs.copyFileSync(sourceDoc.file_path, copiedFilePath);
+
+    const copiedDocId = await createDocument({
+      title: sourceDoc.title || safeTitle,
+      file_path: copiedFilePath,
+      category: sourceDoc.category || "",
+      description: sourceDoc.description || "",
+      tags: sourceDoc.tags || "",
+      department: sourceDoc.department || "",
+      user_id: req.user.id,
+      mime_type: sourceDoc.mime_type || "application/octet-stream",
+      size: sourceDoc.size || 0,
+      is_secured: Number(sourceDoc.is_secured ?? 0),
+    });
+
+    await updateDocumentAIFields(
+      copiedDocId,
+      sourceDoc.content || "",
+      sourceDoc.tags || "",
+      sourceDoc.description || "",
+    );
+
+    res.status(201).json({ success: true, id: copiedDocId, title: sourceDoc.title || safeTitle });
+  } catch (error) {
+    try {
+      if (fs.existsSync(copiedFilePath)) {
+        fs.unlinkSync(copiedFilePath);
+      }
+    } catch {
+      // Ignore cleanup failures.
+    }
+
+    console.error("Failed to copy shared document:", error);
+    res.status(500).json({ error: "Failed to download shared file to your documents." });
+  }
 });
 
 router.delete("/:id/shared-access", authenticateToken, async (req, res) => {

@@ -20,6 +20,8 @@ export default function SharedFiles({ user }: SharedFilesProps) {
   const [shareEmail, setShareEmail] = useState("");
   const [shareFile, setShareFile] = useState<File | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [pendingDeleteDoc, setPendingDeleteDoc] = useState<Document | null>(null);
+  const [deletingAccessDocId, setDeletingAccessDocId] = useState<number | null>(null);
 
   const token = getAuthToken();
 
@@ -227,14 +229,20 @@ export default function SharedFiles({ user }: SharedFilesProps) {
     }
   };
 
-  const handleDeleteAccess = async (doc: Document) => {
-    const proceed = window.confirm("Confirm to remove file?");
-    if (!proceed) {
+  const handleDeleteAccessRequest = (doc: Document) => {
+    setError("");
+    setMessage("");
+    setPendingDeleteDoc(doc);
+  };
+
+  const handleDeleteAccessConfirm = async () => {
+    if (!pendingDeleteDoc || deletingAccessDocId) {
       return;
     }
 
+    setDeletingAccessDocId(pendingDeleteDoc.id);
     try {
-      const response = await fetch(`/api/documents/${doc.id}/shared-access`, {
+      const response = await fetch(`/api/documents/${pendingDeleteDoc.id}/shared-access`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -243,9 +251,12 @@ export default function SharedFiles({ user }: SharedFilesProps) {
         throw new Error(data.error || "Unable to remove shared file.");
       }
       setMessage("File removed successfully.");
+      setPendingDeleteDoc(null);
       void fetchSharedFiles();
     } catch (err: any) {
       setError(err?.message || "Unable to remove shared file.");
+    } finally {
+      setDeletingAccessDocId(null);
     }
   };
 
@@ -331,7 +342,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
                     <button onClick={() => void handleDownload(doc)} className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50" title="Download">
                       <Download className="w-4 h-4" />
                     </button>
-                    <button onClick={() => void handleDeleteAccess(doc)} className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50" title="Delete">
+                    <button onClick={() => handleDeleteAccessRequest(doc)} className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50" title="Delete">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -369,6 +380,49 @@ export default function SharedFiles({ user }: SharedFilesProps) {
           </section>
         </>
       )}
+
+      <AnimatePresence>
+        {pendingDeleteDoc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPendingDeleteDoc(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900"
+            >
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete File</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Are you sure you want to delete this file?
+              </p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteDoc(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteAccessConfirm()}
+                  disabled={deletingAccessDocId === pendingDeleteDoc.id}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+                >
+                  {deletingAccessDocId === pendingDeleteDoc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {deletingAccessDocId === pendingDeleteDoc.id ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isShareModalOpen && (

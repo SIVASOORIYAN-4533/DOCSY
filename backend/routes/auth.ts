@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Request, Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "crypto";
@@ -22,6 +22,7 @@ const buildAuthResponse = (user: {
   name: string;
   email: string;
   role: string;
+  phone?: string | null;
   profile_photo?: string | null;
   secured_password?: string | null;
 }) => {
@@ -38,49 +39,105 @@ const buildAuthResponse = (user: {
       name: user.name,
       email: user.email,
       role: safeRole,
+      phone: user.phone ?? null,
       profilePhoto: user.profile_photo ?? null,
       hasSecuredPassword: !!user.secured_password,
     },
   };
 };
 
-const buildFrontendUrl = (path: string): string => {
-  const base = env.frontendBaseUrl.replace(/\/+$/, "");
+const buildFrontendUrl = (path: string, frontendBaseUrl = env.frontendBaseUrl): string => {
+  const base = frontendBaseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${base}${normalizedPath}`;
 };
 
-const loginErrorUrl = (message: string): string => {
-  return buildFrontendUrl(`/login?oauth_error=${encodeURIComponent(message)}`);
+const loginErrorUrl = (message: string, frontendBaseUrl?: string): string => {
+  return buildFrontendUrl(`/login?oauth_error=${encodeURIComponent(message)}`, frontendBaseUrl);
 };
 
-const loginSuccessUrl = (token: string, user: unknown): string => {
+const loginSuccessUrl = (token: string, user: unknown, frontendBaseUrl?: string): string => {
   const params = new URLSearchParams({
     oauth_token: token,
     oauth_user: JSON.stringify(user),
   });
-  return `${buildFrontendUrl("/login")}#${params.toString()}`;
+  return `${buildFrontendUrl("/login", frontendBaseUrl)}#${params.toString()}`;
 };
 
-const registerPrefillUrl = (email: string, name: string): string => {
+const registerPrefillUrl = (email: string, name: string, frontendBaseUrl?: string): string => {
   const params = new URLSearchParams({
     oauth_provider: "google",
     oauth_email: email,
     oauth_name: name,
   });
-  return `${buildFrontendUrl("/register")}#${params.toString()}`;
+  return `${buildFrontendUrl("/register", frontendBaseUrl)}#${params.toString()}`;
 };
 
 type OAuthStatePayload = {
   provider?: string;
   kind?: string;
   nonce?: string;
+  frontendBaseUrl?: string;
 };
 
-const createOAuthState = (provider: "google" | "github", nonce?: string): string => {
+const normalizeOrigin = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+};
+
+const isLocalhostOrigin = (origin: string): boolean => {
+  return /^https?:\/\/localhost(?::\d+)?$/i.test(origin);
+};
+
+const resolveFrontendBaseUrl = (req: Request): string => {
+  const headerOrigin = normalizeOrigin(String(req.headers.origin || ""));
+  const refererOrigin = normalizeOrigin(String(req.headers.referer || ""));
+
+  const isAllowedOrigin = (origin: string): boolean => {
+    if (!origin) {
+      return false;
+    }
+
+    if (env.corsOrigins.includes("*") || env.corsOrigins.includes(origin)) {
+      return true;
+    }
+
+    if (env.nodeEnv !== "production" && isLocalhostOrigin(origin)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  if (isAllowedOrigin(headerOrigin)) {
+    return headerOrigin;
+  }
+
+  if (isAllowedOrigin(refererOrigin)) {
+    return refererOrigin;
+  }
+
+  return env.frontendBaseUrl;
+};
+
+const createOAuthState = (
+  provider: "google" | "github",
+  options?: { nonce?: string; frontendBaseUrl?: string },
+): string => {
   const payload: OAuthStatePayload = { provider, kind: "oauth-state" };
-  if (nonce) {
-    payload.nonce = nonce;
+  if (options?.nonce) {
+    payload.nonce = options.nonce;
+  }
+  if (options?.frontendBaseUrl) {
+    payload.frontendBaseUrl = options.frontendBaseUrl;
   }
 
   return jwt.sign(payload, env.jwtSecret, { expiresIn: "10m" });
@@ -269,7 +326,8 @@ router.get("/google", (req, res) => {
 
   const redirectUri = `${env.oauthBaseUrl}/api/auth/google/callback`;
   const nonce = randomUUID();
-  const state = createOAuthState("google", nonce);
+  const frontendBaseUrl = resolveFrontendBaseUrl(req);
+  const state = createOAuthState("google", { nonce, frontendBaseUrl });
   const params = new URLSearchParams({
     client_id: env.googleClientId,
     redirect_uri: redirectUri,
@@ -290,9 +348,10 @@ router.all("/google/callback", async (req, res) => {
   const state = String(stateRaw || "");
   const idToken = String(idTokenRaw || "");
   const statePayload = readOAuthState(state, "google");
+  const frontendBaseUrl = statePayload?.frontendBaseUrl || env.frontendBaseUrl;
 
   if (!idToken || !statePayload) {
-    res.redirect(loginErrorUrl("Invalid Google OAuth response"));
+    res.redirect(loginErrorUrl("Invalid Google OAuth response", frontendBaseUrl));
     return;
   }
 
@@ -311,31 +370,31 @@ router.all("/google/callback", async (req, res) => {
 
     const isEmailVerified = tokenInfo.email_verified === true || tokenInfo.email_verified === "true";
     if (!tokenInfoRes.ok || !tokenInfo.email || !isEmailVerified) {
-      res.redirect(loginErrorUrl("Google account validation failed"));
+      res.redirect(loginErrorUrl("Google account validation failed", frontendBaseUrl));
       return;
     }
 
     if (tokenInfo.aud !== env.googleClientId) {
-      res.redirect(loginErrorUrl("Google token audience mismatch"));
+      res.redirect(loginErrorUrl("Google token audience mismatch", frontendBaseUrl));
       return;
     }
 
     if (statePayload.nonce && tokenInfo.nonce !== statePayload.nonce) {
-      res.redirect(loginErrorUrl("Google nonce validation failed"));
+      res.redirect(loginErrorUrl("Google nonce validation failed", frontendBaseUrl));
       return;
     }
 
     const normalizedEmail = normalizeEmail(tokenInfo.email);
     const user = await findUserByEmail(normalizedEmail);
     if (!user) {
-      res.redirect(registerPrefillUrl(normalizedEmail, String(tokenInfo.name || "").trim()));
+      res.redirect(registerPrefillUrl(normalizedEmail, String(tokenInfo.name || "").trim(), frontendBaseUrl));
       return;
     }
 
     const auth = buildAuthResponse(user);
-    res.redirect(loginSuccessUrl(auth.token, auth.user));
+    res.redirect(loginSuccessUrl(auth.token, auth.user, frontendBaseUrl));
   } catch {
-    res.redirect(loginErrorUrl("Google sign-in failed"));
+    res.redirect(loginErrorUrl("Google sign-in failed", frontendBaseUrl));
   }
 });
 
@@ -346,7 +405,8 @@ router.get("/github", (req, res) => {
   }
 
   const redirectUri = `${env.oauthBaseUrl}/api/auth/github/callback`;
-  const state = createOAuthState("github");
+  const frontendBaseUrl = resolveFrontendBaseUrl(req);
+  const state = createOAuthState("github", { frontendBaseUrl });
   const params = new URLSearchParams({
     client_id: env.githubClientId,
     redirect_uri: redirectUri,
@@ -361,9 +421,10 @@ router.get("/github/callback", async (req, res) => {
   const code = String(req.query.code || "");
   const state = String(req.query.state || "");
   const statePayload = readOAuthState(state, "github");
+  const frontendBaseUrl = statePayload?.frontendBaseUrl || env.frontendBaseUrl;
 
   if (!code || !statePayload) {
-    res.redirect(loginErrorUrl("Invalid GitHub OAuth response"));
+    res.redirect(loginErrorUrl("Invalid GitHub OAuth response", frontendBaseUrl));
     return;
   }
 
@@ -382,7 +443,7 @@ router.get("/github/callback", async (req, res) => {
 
     const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
     if (!tokenRes.ok || !tokenData.access_token) {
-      res.redirect(loginErrorUrl("GitHub token exchange failed"));
+      res.redirect(loginErrorUrl("GitHub token exchange failed", frontendBaseUrl));
       return;
     }
 
@@ -403,21 +464,21 @@ router.get("/github/callback", async (req, res) => {
       emails[0]?.email;
 
     if (!profileRes.ok || !emailsRes.ok || !chosenEmail) {
-      res.redirect(loginErrorUrl("GitHub account email not available"));
+      res.redirect(loginErrorUrl("GitHub account email not available", frontendBaseUrl));
       return;
     }
 
     await ensureOAuthUser(chosenEmail, profile.name || profile.login || "GitHub User", "github");
     const user = await findUserByEmail(chosenEmail);
     if (!user) {
-      res.redirect(loginErrorUrl("Failed to create GitHub user"));
+      res.redirect(loginErrorUrl("Failed to create GitHub user", frontendBaseUrl));
       return;
     }
 
     const auth = buildAuthResponse(user);
-    res.redirect(loginSuccessUrl(auth.token, auth.user));
+    res.redirect(loginSuccessUrl(auth.token, auth.user, frontendBaseUrl));
   } catch {
-    res.redirect(loginErrorUrl("GitHub sign-in failed"));
+    res.redirect(loginErrorUrl("GitHub sign-in failed", frontendBaseUrl));
   }
 });
 
@@ -434,7 +495,7 @@ router.post("/login", async (req, res) => {
 });
 
 router.put("/profile", authenticateToken, async (req, res) => {
-  const { name, email, profilePhoto, favouriteTeacher } = req.body || {};
+  const { name, email, phone, profilePhoto, favouriteTeacher } = req.body || {};
 
   if (!req.user) {
     res.sendStatus(401);
@@ -444,6 +505,7 @@ router.put("/profile", authenticateToken, async (req, res) => {
   try {
     const normalizedEmail = normalizeEmail(email);
     const normalizedName = String(name || "").trim();
+    const normalizedPhone = String(phone || "").trim();
     if (!normalizedName || !normalizedEmail) {
       res.status(400).json({ error: "Name and email are required" });
       return;
@@ -455,10 +517,21 @@ router.put("/profile", authenticateToken, async (req, res) => {
       req.user.id,
       normalizedName,
       normalizedEmail,
+      normalizedPhone || null,
       profilePhoto ?? null,
       normalizedFavouriteTeacher || undefined,
     );
-    res.json({ success: true });
+
+    const refreshedUser = await findUserById(req.user.id);
+    if (!refreshedUser) {
+      res.json({ success: true });
+      return;
+    }
+
+    res.json({
+      success: true,
+      user: buildAuthResponse(refreshedUser).user,
+    });
   } catch {
     res.status(400).json({ error: "Email already exists" });
   }

@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { getDatabaseHealth, initializeDatabase } from "./db/repository";
 import { authenticateToken } from "./middleware/auth";
 import authRoutes from "./routes/auth";
+import chatRoutes from "./routes/chat";
 import documentsRoutes from "./routes/documents";
 import notificationsRoutes from "./routes/notifications";
 import searchRoutes from "./routes/search";
@@ -93,6 +94,7 @@ export const startServer = async (): Promise<void> => {
   });
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/chat", chatRoutes);
   app.use("/api/documents", documentsRoutes);
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/search", searchRoutes);

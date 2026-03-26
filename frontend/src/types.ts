@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   role: "user";
+  phone?: string | null;
   profilePhoto?: string | null;
   hasSecuredPassword?: boolean;
 }

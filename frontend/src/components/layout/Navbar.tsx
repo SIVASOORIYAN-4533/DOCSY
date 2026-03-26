@@ -262,7 +262,12 @@ export default function Navbar({ user }: NavbarProps) {
 
         <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
 
-        <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 p-1 rounded-lg transition-colors">
+        <button
+          type="button"
+          onClick={() => navigate("/settings?tab=profile")}
+          className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 p-1 rounded-lg transition-colors"
+          title="Open Profile"
+        >
           <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm overflow-hidden">
             {user?.profilePhoto ? (
               <img src={user.profilePhoto} alt={user?.name || "User"} className="w-full h-full object-cover" />
@@ -273,7 +278,7 @@ export default function Navbar({ user }: NavbarProps) {
           <span className="text-sm font-medium text-slate-700 dark:text-slate-200 hidden sm:block">
             {user?.name || "User"}
           </span>
-        </div>
+        </button>
       </div>
     </header>
   );

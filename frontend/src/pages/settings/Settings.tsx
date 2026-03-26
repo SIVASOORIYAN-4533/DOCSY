@@ -1,5 +1,6 @@
-import { User as UserIcon, Shield, Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { User } from "../../types";
 import { getAuthToken, updateStoredUser } from "../../utils/authStorage";
 
@@ -7,10 +8,24 @@ interface SettingsProps {
   user: User;
 }
 
+type SettingsTab = "profile" | "security";
+
+const resolveTab = (search: string): SettingsTab => {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab === "security" ? "security" : "profile";
+};
+
 export default function Settings({ user }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState("profile");
-  const [name, setName] = useState(user?.name || "");
-  const [email, setEmail] = useState(user?.email || "");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => resolveTab(location.search));
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showFavouriteTeacherEditor, setShowFavouriteTeacherEditor] = useState(false);
+
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [profileEmail, setProfileEmail] = useState(user?.email || "");
+  const [profilePhone, setProfilePhone] = useState(user?.phone || "");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.profilePhoto || null);
   const [favouriteTeacher, setFavouriteTeacher] = useState("");
 
@@ -21,11 +36,20 @@ export default function Settings({ user }: SettingsProps) {
     typeof user?.hasSecuredPassword === "boolean" ? user.hasSecuredPassword : null,
   );
 
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileError, setProfileError] = useState("");
+
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityError, setSecurityError] = useState("");
+
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const switchTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    navigate(`/settings?tab=${tab}`, { replace: true });
+  };
 
   const inferVaultStatusFromVerifyEndpoint = async (): Promise<boolean> => {
     try {
@@ -71,16 +95,27 @@ export default function Settings({ user }: SettingsProps) {
   };
 
   useEffect(() => {
+    setActiveTab(resolveTab(location.search));
+  }, [location.search]);
+
+  useEffect(() => {
     if (activeTab === "security" && isVaultPasswordSet === null) {
       void loadVaultStatus();
     }
   }, [activeTab, isVaultPasswordSet]);
 
   useEffect(() => {
-    setName(user?.name || "");
-    setEmail(user?.email || "");
+    setProfileName(user?.name || "");
+    setProfileEmail(user?.email || "");
+    setProfilePhone(user?.phone || "");
     setProfilePhoto(user?.profilePhoto || null);
     setFavouriteTeacher("");
+    setIsEditingProfile(false);
+    setShowFavouriteTeacherEditor(false);
+    setProfileError("");
+    setProfileMessage("");
+    setSecurityError("");
+    setSecurityMessage("");
     if (typeof user?.hasSecuredPassword === "boolean") {
       setIsVaultPasswordSet(user.hasSecuredPassword);
     }
@@ -93,35 +128,102 @@ export default function Settings({ user }: SettingsProps) {
     }
 
     if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file.");
+      setProfileError("Please choose an image file.");
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      setError("Profile photo must be 2MB or smaller.");
+      setProfileError("Profile photo must be 2MB or smaller.");
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
       setProfilePhoto(typeof reader.result === "string" ? reader.result : null);
-      setMessage("Profile photo selected. Click Save Changes to apply.");
-      setError("");
+      setProfileMessage("Profile photo selected.");
+      setProfileError("");
     };
     reader.onerror = () => {
-      setError("Failed to read selected file.");
+      setProfileError("Failed to read selected file.");
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSave = async () => {
-    setLoading(true);
-    setError("");
-    setSuccess(false);
-    setMessage("");
+  const handleSaveProfile = async () => {
+    setProfileLoading(true);
+    setProfileError("");
+    setProfileMessage("");
 
     try {
-      if (activeTab === "security" && isVaultPasswordSet) {
+      const normalizedName = profileName.trim();
+      const normalizedEmail = profileEmail.trim();
+      const normalizedPhone = profilePhone.trim();
+
+      if (!normalizedName || !normalizedEmail) {
+        setProfileError("Name and email are required.");
+        setProfileLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          name: normalizedName,
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          profilePhoto,
+          favouriteTeacher: favouriteTeacher.trim() || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { user?: User };
+        const updatedUser = data.user
+          ? { ...user, ...data.user }
+          : {
+              ...user,
+              name: normalizedName,
+              email: normalizedEmail,
+              phone: normalizedPhone || null,
+              profilePhoto,
+            };
+        updateStoredUser(updatedUser);
+        window.dispatchEvent(new Event("user-updated"));
+        setProfileName(updatedUser.name || normalizedName);
+        setProfileEmail(updatedUser.email || normalizedEmail);
+        setProfilePhone(updatedUser.phone || "");
+        setProfilePhoto(updatedUser.profilePhoto ?? null);
+        setFavouriteTeacher("");
+        setShowFavouriteTeacherEditor(false);
+        setIsEditingProfile(false);
+        setProfileMessage("Profile updated successfully.");
+      } else {
+        let data: { error?: string } = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+        setProfileError(data.error || `Update failed (HTTP ${response.status})`);
+      }
+    } catch {
+      setProfileError("An error occurred.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    setSecurityLoading(true);
+    setSecurityError("");
+    setSecurityMessage("");
+
+    try {
+      if (isVaultPasswordSet) {
         const verifyResponse = await fetch("/api/auth/verify-secured", {
           method: "POST",
           headers: {
@@ -133,49 +235,34 @@ export default function Settings({ user }: SettingsProps) {
 
         if (!verifyResponse.ok) {
           const verifyData = await verifyResponse.json().catch(() => ({} as { error?: string }));
-          setError(verifyData.error || "Current vault password is incorrect");
-          setLoading(false);
+          setSecurityError(verifyData.error || "Current vault password is incorrect");
+          setSecurityLoading(false);
           return;
         }
       }
 
-      const endpoint = activeTab === "profile" ? "/api/auth/profile" : "/api/auth/secured-password";
-      const body =
-        activeTab === "profile"
-          ? { name, email, profilePhoto, favouriteTeacher }
-          : {
-              password: securedPassword,
-              oldPassword: isVaultPasswordSet ? oldVaultPassword : undefined,
-              accountPassword: isVaultPasswordSet ? undefined : accountPassword,
-            };
-
-      const response = await fetch(endpoint, {
-        method: activeTab === "profile" ? "PUT" : "POST",
+      const response = await fetch("/api/auth/secured-password", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getAuthToken()}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          password: securedPassword,
+          oldPassword: isVaultPasswordSet ? oldVaultPassword : undefined,
+          accountPassword: isVaultPasswordSet ? undefined : accountPassword,
+        }),
       });
 
       if (response.ok) {
-        setSuccess(true);
-        if (activeTab === "profile") {
-          const updatedUser = { ...user, name, email, profilePhoto };
-          updateStoredUser(updatedUser);
-          window.dispatchEvent(new Event("user-updated"));
-          setFavouriteTeacher("");
-          setMessage("Profile updated successfully.");
-        } else {
-          setSecuredPassword("");
-          setOldVaultPassword("");
-          setAccountPassword("");
-          setIsVaultPasswordSet(true);
-          const updatedUser = { ...user, hasSecuredPassword: true };
-          updateStoredUser(updatedUser);
-          window.dispatchEvent(new Event("user-updated"));
-          setMessage("Secured vault password updated successfully.");
-        }
+        setSecuredPassword("");
+        setOldVaultPassword("");
+        setAccountPassword("");
+        setIsVaultPasswordSet(true);
+        const updatedUser = { ...user, hasSecuredPassword: true };
+        updateStoredUser(updatedUser);
+        window.dispatchEvent(new Event("user-updated"));
+        setSecurityMessage("Secured vault password updated successfully.");
       } else {
         let data: { error?: string } = {};
         try {
@@ -183,143 +270,277 @@ export default function Settings({ user }: SettingsProps) {
         } catch {
           data = {};
         }
-        setError(data.error || `Update failed (HTTP ${response.status})`);
+        setSecurityError(data.error || `Update failed (HTTP ${response.status})`);
       }
     } catch {
-      setError("An error occurred.");
+      setSecurityError("An error occurred.");
     } finally {
-      setLoading(false);
+      setSecurityLoading(false);
     }
   };
 
+  const resetProfileEditing = () => {
+    setProfileName(user?.name || "");
+    setProfileEmail(user?.email || "");
+    setProfilePhone(user?.phone || "");
+    setProfilePhoto(user?.profilePhoto || null);
+    setFavouriteTeacher("");
+    setShowFavouriteTeacherEditor(false);
+    setIsEditingProfile(false);
+    setProfileError("");
+    setProfileMessage("");
+  };
+
+  const hasProfileChanges =
+    profileName.trim() !== (user?.name || "").trim() ||
+    profileEmail.trim() !== (user?.email || "").trim() ||
+    profilePhone.trim() !== (user?.phone || "").trim() ||
+    profilePhoto !== (user?.profilePhoto || null) ||
+    favouriteTeacher.trim().length > 0;
+
   const securitySaveDisabled =
-    loading ||
+    securityLoading ||
     !securedPassword.trim() ||
     isVaultPasswordSet === null ||
     (isVaultPasswordSet ? !oldVaultPassword.trim() : !accountPassword.trim());
 
+  const displayName = profileName.trim() || "-";
+  const displayEmail = profileEmail.trim() || "-";
+  const displayPhone = profilePhone.trim() || "Not provided";
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 text-slate-900 dark:text-slate-100">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Settings</h1>
-        <p className="text-slate-500 dark:text-slate-400">Manage your account and application preferences.</p>
+    <div className="mx-auto max-w-5xl space-y-6 text-slate-900 dark:text-slate-100">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Profile</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Manage your account details and vault security settings.
+        </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="space-y-2">
-          <button
-            onClick={() => setActiveTab("profile")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
-              activeTab === "profile"
-                ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300"
-                : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/70"
-            }`}
-          >
-            <UserIcon className="w-5 h-5" /> Account Profile
-          </button>
-          <button
-            onClick={() => setActiveTab("security")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
-              activeTab === "security"
-                ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300"
-                : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/70"
-            }`}
-          >
-            <Shield className="w-5 h-5" /> Security & Vault
-          </button>
-        </div>
-
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+          <div className="space-y-6">
             {activeTab === "profile" ? (
               <>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4">Account Profile</h2>
-
-                {error && <div className="text-red-600 dark:text-red-300 text-sm font-bold">{error}</div>}
-                {success && <div className="text-emerald-600 dark:text-emerald-300 text-sm font-bold">Profile updated!</div>}
-                {message && <div className="text-indigo-600 dark:text-indigo-300 text-sm font-semibold">{message}</div>}
-
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-3xl font-bold">
-                    {profilePhoto ? (
-                      <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      name[0]?.toUpperCase() || "U"
-                    )}
-                  </div>
-                  <div className="flex gap-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Profile Details</h2>
+                  {!isEditingProfile && (
                     <button
                       type="button"
-                      onClick={() => photoInputRef.current?.click()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-500 transition-colors"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
                     >
-                      Change Photo
+                      Edit
                     </button>
-                    {profilePhoto && (
-                      <button
-                        type="button"
-                        onClick={() => setProfilePhoto(null)}
-                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
-                    <input
-                      ref={photoInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfilePhotoChange}
-                      className="hidden"
-                    />
+                  )}
+                </div>
+
+                {profileError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                    {profileError}
+                  </div>
+                )}
+                {profileMessage && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300">
+                    {profileMessage}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/60">
+                  <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                      {profilePhoto ? (
+                        <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          {displayName[0]?.toUpperCase() || "U"}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Email</p>
+                        <p className="mt-1 break-all text-sm font-semibold text-slate-900 dark:text-slate-100">{displayEmail}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Phone</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayPhone}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
+                {isEditingProfile && (
+                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                    <div className="space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Edit Profile</h3>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300">
+                          Editing Mode
+                        </span>
+                      </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Update Favourite Teacher</label>
-                  <input
-                    type="text"
-                    value={favouriteTeacher}
-                    onChange={(e) => setFavouriteTeacher(e.target.value)}
-                    placeholder="Enter a new favourite teacher name"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
-                  />
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Leave empty if you do not want to change your current answer.
-                  </p>
-                </div>
+                      <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+                        <div className="space-y-3">
+                          <div className="mx-auto h-24 w-24 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                            {profilePhoto ? (
+                              <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                {displayName[0]?.toUpperCase() || "U"}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => photoInputRef.current?.click()}
+                              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
+                            >
+                              Change Photo
+                            </button>
+                            {profilePhoto && (
+                              <button
+                                type="button"
+                                onClick={() => setProfilePhoto(null)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                              >
+                                Remove Photo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Name
+                              </label>
+                              <input
+                                type="text"
+                                value={profileName}
+                                onChange={(e) => setProfileName(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Phone
+                              </label>
+                              <input
+                                type="text"
+                                value={profilePhone}
+                                onChange={(e) => setProfilePhone(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Email
+                            </label>
+                            <input
+                              type="email"
+                              value={profileEmail}
+                              onChange={(e) => setProfileEmail(e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {showFavouriteTeacherEditor && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                            Update Your Favourite Teacher
+                          </label>
+                          <input
+                            type="text"
+                            value={favouriteTeacher}
+                            onChange={(e) => setFavouriteTeacher(e.target.value)}
+                            placeholder="Enter favourite teacher name"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                          />
+                        </div>
+                      )}
+
+                      <input
+                        ref={photoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePhotoChange}
+                        className="hidden"
+                      />
+
+                      <div className="flex flex-wrap justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => switchTab("security")}
+                          className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-slate-700"
+                        >
+                          Set Security PIN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowFavouriteTeacherEditor(true)}
+                          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Set Favourite Teacher
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetProfileEditing}
+                          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveProfile}
+                          disabled={profileLoading || !hasProfileChanges}
+                          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {profileLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                          Save Profile Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4">Security & Vault</h2>
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Security & Vault</h2>
+                  <button
+                    type="button"
+                    onClick={() => switchTab("profile")}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back To Profile
+                  </button>
+                </div>
 
-                {error && <div className="text-red-600 dark:text-red-300 text-sm font-bold">{error}</div>}
-                {success && <div className="text-emerald-600 dark:text-emerald-300 text-sm font-bold">Security updated!</div>}
-                {message && <div className="text-indigo-600 dark:text-indigo-300 text-sm font-semibold">{message}</div>}
+                {securityError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                    {securityError}
+                  </div>
+                )}
+                {securityMessage && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300">
+                    {securityMessage}
+                  </div>
+                )}
 
                 <div className="space-y-4">
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/60 rounded-2xl">
-                    <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-900/20">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
                       {isVaultPasswordSet
                         ? "To change vault password, enter your current vault password first."
                         : "First-time vault setup requires your account password."}
@@ -330,56 +551,57 @@ export default function Settings({ user }: SettingsProps) {
                     <div className="text-sm text-slate-500 dark:text-slate-400">Loading vault status...</div>
                   ) : isVaultPasswordSet ? (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Current Vault Password</label>
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Current Vault Password</label>
                       <input
                         type="password"
                         value={oldVaultPassword}
                         onChange={(e) => setOldVaultPassword(e.target.value)}
                         placeholder="Enter current vault password"
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                       />
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Account Password</label>
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Account Password</label>
                       <input
                         type="password"
                         value={accountPassword}
                         onChange={(e) => setAccountPassword(e.target.value)}
                         placeholder="Enter account password"
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">New Secured Password</label>
+                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">New Secured Password</label>
                     <input
                       type="password"
                       value={securedPassword}
                       onChange={(e) => setSecuredPassword(e.target.value)}
                       placeholder="Enter new vault password"
                       minLength={6}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-slate-100 dark:placeholder:text-slate-400"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                     />
                   </div>
                 </div>
               </>
             )}
 
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-              <button
-                className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors disabled:opacity-50 flex items-center gap-2"
-                onClick={handleSave}
-                disabled={activeTab === "security" ? securitySaveDisabled : loading}
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save Changes
-              </button>
-            </div>
+            {activeTab === "security" && (
+              <div className="flex justify-end border-t border-slate-200 pt-6 dark:border-slate-800">
+                <button
+                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleSaveSecurity}
+                  disabled={securitySaveDisabled}
+                >
+                  {securityLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save Changes
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

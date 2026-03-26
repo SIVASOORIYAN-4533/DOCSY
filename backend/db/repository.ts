@@ -11,6 +11,7 @@ interface UserRecord {
   password: string;
   role: string;
   phone?: string | null;
+  chatbot_name?: string | null;
   favourite_teacher?: string | null;
   secured_password?: string | null;
   profile_photo?: string | null;
@@ -50,6 +51,23 @@ export interface NotificationRecord {
   created_at: string;
 }
 
+export interface ChatMessageRecord {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatConversationSummaryRecord {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatConversationRecord extends ChatConversationSummaryRecord {
+  user_id: number;
+  messages: ChatMessageRecord[];
+}
+
 let isMongoProvider = env.dbProvider === "mongodb";
 let sqliteUsersColumnsChecked = false;
 
@@ -69,6 +87,7 @@ const userSchema = new Schema(
     password: { type: String, required: true },
     role: { type: String, default: "user" },
     phone: { type: String, default: null },
+    chatbot_name: { type: String, default: "Agastiya" },
     favourite_teacher: { type: String, default: null },
     secured_password: { type: String, default: null },
     profile_photo: { type: String, default: null },
@@ -122,6 +141,45 @@ const notificationSchema = new Schema(
   { versionKey: false },
 );
 
+const chatHistorySchema = new Schema(
+  {
+    user_id: { type: Number, required: true, unique: true, index: true },
+    messages: {
+      type: [
+        {
+          role: { type: String, enum: ["user", "assistant"], required: true },
+          content: { type: String, required: true },
+        },
+      ],
+      default: [],
+    },
+    updated_at: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+
+const chatConversationSchema = new Schema(
+  {
+    conversation_id: { type: String, required: true },
+    user_id: { type: Number, required: true, index: true },
+    title: { type: String, required: true, default: "New Chat" },
+    messages: {
+      type: [
+        {
+          role: { type: String, enum: ["user", "assistant"], required: true },
+          content: { type: String, required: true },
+        },
+      ],
+      default: [],
+    },
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now, index: true },
+  },
+  { versionKey: false },
+);
+chatConversationSchema.index({ user_id: 1, conversation_id: 1 }, { unique: true });
+chatConversationSchema.index({ user_id: 1, updated_at: -1 });
+
 const CounterModel: any =
   (mongoose.models.Counter as any) || mongoose.model("Counter", counterSchema, "counters");
 const UserModel: any = (mongoose.models.User as any) || mongoose.model("User", userSchema, "users");
@@ -131,6 +189,11 @@ const SharingModel: any =
   (mongoose.models.Sharing as any) || mongoose.model("Sharing", sharingSchema, "sharing");
 const NotificationModel: any =
   (mongoose.models.Notification as any) || mongoose.model("Notification", notificationSchema, "notifications");
+const ChatHistoryModel: any =
+  (mongoose.models.ChatHistory as any) || mongoose.model("ChatHistory", chatHistorySchema, "chat_history");
+const ChatConversationModel: any =
+  (mongoose.models.ChatConversation as any) ||
+  mongoose.model("ChatConversation", chatConversationSchema, "chat_conversations");
 
 const escapeRegex = (value: string): string => {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -145,6 +208,7 @@ const ensureUsersColumns = (): void => {
     const columns = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     const hasFavouriteTeacher = columns.some((column) => column.name === "favourite_teacher");
     const hasPhone = columns.some((column) => column.name === "phone");
+    const hasChatbotName = columns.some((column) => column.name === "chatbot_name");
 
     if (!hasFavouriteTeacher) {
       db.prepare("ALTER TABLE users ADD COLUMN favourite_teacher TEXT").run();
@@ -152,6 +216,10 @@ const ensureUsersColumns = (): void => {
 
     if (!hasPhone) {
       db.prepare("ALTER TABLE users ADD COLUMN phone TEXT").run();
+    }
+
+    if (!hasChatbotName) {
+      db.prepare("ALTER TABLE users ADD COLUMN chatbot_name TEXT").run();
     }
   } catch (error) {
     const message = String((error as { message?: string } | undefined)?.message || "");
@@ -200,6 +268,8 @@ const ensureMongoIndexes = async (): Promise<void> => {
     DocumentModel.createIndexes(),
     SharingModel.createIndexes(),
     NotificationModel.createIndexes(),
+    ChatHistoryModel.createIndexes(),
+    ChatConversationModel.createIndexes(),
   ]);
 };
 
@@ -234,6 +304,40 @@ const normalizeNotification = (row: any): NotificationRecord => {
   };
 };
 
+const normalizeChatMessages = (value: unknown): ChatMessageRecord[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => item as { role?: unknown; content?: unknown })
+    .map((item) => {
+      const role = item.role === "assistant" ? "assistant" : "user";
+      const content = String(item.content || "").trim();
+      return { role, content } as ChatMessageRecord;
+    })
+    .filter((item) => item.content.length > 0)
+    .slice(-100);
+};
+
+const normalizeChatConversation = (row: any): ChatConversationRecord => {
+  const createdAtRaw = row?.created_at;
+  const updatedAtRaw = row?.updated_at;
+  const createdAt =
+    createdAtRaw instanceof Date ? createdAtRaw.toISOString() : String(createdAtRaw ?? new Date().toISOString());
+  const updatedAt =
+    updatedAtRaw instanceof Date ? updatedAtRaw.toISOString() : String(updatedAtRaw ?? new Date().toISOString());
+
+  return {
+    id: String(row?.conversation_id || ""),
+    user_id: Number(row?.user_id),
+    title: String(row?.title || "New Chat"),
+    messages: normalizeChatMessages(row?.messages),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+};
+
 export const initializeDatabase = async (): Promise<void> => {
   if (isMongoProvider) {
     try {
@@ -245,6 +349,10 @@ export const initializeDatabase = async (): Promise<void> => {
       await UserModel.updateMany(
         { phone: { $exists: false } },
         { $set: { phone: null } },
+      );
+      await UserModel.updateMany(
+        { chatbot_name: { $exists: false } },
+        { $set: { chatbot_name: "Agastiya" } },
       );
       await UserModel.updateMany(
         { role: { $ne: "user" } },
@@ -293,6 +401,7 @@ export const createUser = async (
       password,
       role,
       phone: normalizedPhone || null,
+      chatbot_name: "Agastiya",
       favourite_teacher: favouriteTeacher,
       profile_photo: null,
     });
@@ -328,6 +437,7 @@ export const findUserByEmail = async (email: string): Promise<UserRecord | null>
       password: user.password,
       role: user.role,
       phone: user.phone ?? null,
+      chatbot_name: user.chatbot_name ?? "Agastiya",
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
       profile_photo: user.profile_photo ?? user.profilePhoto ?? null,
@@ -354,6 +464,7 @@ export const findUserById = async (userId: number): Promise<UserRecord | null> =
       password: user.password,
       role: user.role,
       phone: user.phone ?? null,
+      chatbot_name: user.chatbot_name ?? "Agastiya",
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
       profile_photo: user.profile_photo ?? user.profilePhoto ?? null,
@@ -364,10 +475,291 @@ export const findUserById = async (userId: number): Promise<UserRecord | null> =
   return user ?? null;
 };
 
+export const getUserChatbotName = async (userId: number): Promise<string | null> => {
+  if (isMongoProvider) {
+    const user = await UserModel.findOne({ id: userId }, { chatbot_name: 1, _id: 0 }).lean();
+    return user?.chatbot_name ?? null;
+  }
+
+  ensureUsersColumns();
+  const row = db
+    .prepare("SELECT chatbot_name FROM users WHERE id = ?")
+    .get(userId) as { chatbot_name?: string | null } | undefined;
+  return row?.chatbot_name ?? null;
+};
+
+export const setUserChatbotName = async (userId: number, chatbotName: string): Promise<void> => {
+  if (isMongoProvider) {
+    await UserModel.updateOne({ id: userId }, { $set: { chatbot_name: chatbotName } });
+    return;
+  }
+
+  ensureUsersColumns();
+  db.prepare("UPDATE users SET chatbot_name = ? WHERE id = ?").run(chatbotName, userId);
+};
+
+export const listUserChatConversations = async (
+  userId: number,
+): Promise<ChatConversationSummaryRecord[]> => {
+  if (isMongoProvider) {
+    const rows = await ChatConversationModel.find(
+      { user_id: userId },
+      { conversation_id: 1, title: 1, created_at: 1, updated_at: 1, _id: 0 },
+    )
+      .sort({ updated_at: -1 })
+      .limit(100)
+      .lean();
+
+    return rows.map((row: any) => {
+      const normalized = normalizeChatConversation({ ...row, messages: [] });
+      return {
+        id: normalized.id,
+        title: normalized.title,
+        created_at: normalized.created_at,
+        updated_at: normalized.updated_at,
+      };
+    });
+  }
+
+  const rows = db
+    .prepare(
+      `
+      SELECT conversation_id, user_id, title, created_at, updated_at
+      FROM chat_conversations
+      WHERE user_id = ?
+      ORDER BY datetime(updated_at) DESC
+      LIMIT 100
+    `,
+    )
+    .all(userId) as Array<{
+      conversation_id: string;
+      user_id: number;
+      title: string;
+      created_at: string;
+      updated_at: string;
+    }>;
+
+  return rows.map((row) => {
+    const normalized = normalizeChatConversation({ ...row, messages: [] });
+    return {
+      id: normalized.id,
+      title: normalized.title,
+      created_at: normalized.created_at,
+      updated_at: normalized.updated_at,
+    };
+  });
+};
+
+export const getUserChatConversation = async (
+  userId: number,
+  conversationId: string,
+): Promise<ChatConversationRecord | null> => {
+  const normalizedConversationId = String(conversationId || "").trim();
+  if (!normalizedConversationId) {
+    return null;
+  }
+
+  if (isMongoProvider) {
+    const row = await ChatConversationModel.findOne({
+      user_id: userId,
+      conversation_id: normalizedConversationId,
+    }).lean();
+    return row ? normalizeChatConversation(row) : null;
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT conversation_id, user_id, title, messages, created_at, updated_at
+      FROM chat_conversations
+      WHERE user_id = ? AND conversation_id = ?
+      LIMIT 1
+    `,
+    )
+    .get(userId, normalizedConversationId) as
+    | {
+        conversation_id: string;
+        user_id: number;
+        title: string;
+        messages: string;
+        created_at: string;
+        updated_at: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  let parsedMessages: unknown = [];
+  try {
+    parsedMessages = JSON.parse(row.messages || "[]");
+  } catch {
+    parsedMessages = [];
+  }
+
+  return normalizeChatConversation({
+    ...row,
+    messages: parsedMessages,
+  });
+};
+
+export const saveUserChatConversation = async (
+  userId: number,
+  conversationId: string,
+  title: string,
+  messages: ChatMessageRecord[],
+): Promise<ChatConversationRecord> => {
+  const normalizedConversationId = String(conversationId || "").trim();
+  const normalizedTitle = String(title || "").trim() || "New Chat";
+  const normalizedMessages = normalizeChatMessages(messages);
+
+  if (isMongoProvider) {
+    await ChatConversationModel.updateOne(
+      { user_id: userId, conversation_id: normalizedConversationId },
+      {
+        $set: {
+          title: normalizedTitle,
+          messages: normalizedMessages,
+          updated_at: new Date(),
+        },
+        $setOnInsert: {
+          conversation_id: normalizedConversationId,
+          user_id: userId,
+          created_at: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+
+    const saved = await ChatConversationModel.findOne({
+      user_id: userId,
+      conversation_id: normalizedConversationId,
+    }).lean();
+    return normalizeChatConversation(saved || {
+      conversation_id: normalizedConversationId,
+      user_id: userId,
+      title: normalizedTitle,
+      messages: normalizedMessages,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+  }
+
+  const serialized = JSON.stringify(normalizedMessages);
+  db.prepare(
+    `
+      INSERT INTO chat_conversations (conversation_id, user_id, title, messages, created_at, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(conversation_id) DO UPDATE SET
+        title = excluded.title,
+        messages = excluded.messages,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+  ).run(normalizedConversationId, userId, normalizedTitle, serialized);
+
+  const saved = db
+    .prepare(
+      `
+      SELECT conversation_id, user_id, title, messages, created_at, updated_at
+      FROM chat_conversations
+      WHERE conversation_id = ? AND user_id = ?
+      LIMIT 1
+    `,
+    )
+    .get(normalizedConversationId, userId) as
+    | {
+        conversation_id: string;
+        user_id: number;
+        title: string;
+        messages: string;
+        created_at: string;
+        updated_at: string;
+      }
+    | undefined;
+
+  let parsedMessages: unknown = normalizedMessages;
+  if (saved?.messages) {
+    try {
+      parsedMessages = JSON.parse(saved.messages);
+    } catch {
+      parsedMessages = normalizedMessages;
+    }
+  }
+
+  return normalizeChatConversation({
+    conversation_id: normalizedConversationId,
+    user_id: userId,
+    title: saved?.title || normalizedTitle,
+    messages: parsedMessages,
+    created_at: saved?.created_at || new Date().toISOString(),
+    updated_at: saved?.updated_at || new Date().toISOString(),
+  });
+};
+
+export const getUserChatHistory = async (userId: number): Promise<ChatMessageRecord[]> => {
+  if (isMongoProvider) {
+    const row = await ChatHistoryModel.findOne({ user_id: userId }, { messages: 1, _id: 0 }).lean();
+    return normalizeChatMessages(row?.messages);
+  }
+
+  const row = db
+    .prepare("SELECT messages FROM chat_history WHERE user_id = ?")
+    .get(userId) as { messages?: string | null } | undefined;
+
+  if (!row?.messages) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(row.messages);
+    return normalizeChatMessages(parsed);
+  } catch {
+    return [];
+  }
+};
+
+export const saveUserChatHistory = async (
+  userId: number,
+  messages: ChatMessageRecord[],
+): Promise<void> => {
+  const normalizedMessages = normalizeChatMessages(messages);
+
+  if (isMongoProvider) {
+    await ChatHistoryModel.updateOne(
+      { user_id: userId },
+      { $set: { messages: normalizedMessages, updated_at: new Date() } },
+      { upsert: true },
+    );
+    return;
+  }
+
+  const serialized = JSON.stringify(normalizedMessages);
+  db.prepare(
+    `
+      INSERT INTO chat_history (user_id, messages, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
+        messages = excluded.messages,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+  ).run(userId, serialized);
+};
+
+export const clearUserChatHistory = async (userId: number): Promise<void> => {
+  if (isMongoProvider) {
+    await ChatHistoryModel.deleteOne({ user_id: userId });
+    return;
+  }
+
+  db.prepare("DELETE FROM chat_history WHERE user_id = ?").run(userId);
+};
+
 export const updateUserProfile = async (
   userId: number,
   name: string,
   email: string,
+  phone: string | null,
   profilePhoto: string | null,
   favouriteTeacher?: string,
 ): Promise<void> => {
@@ -375,6 +767,7 @@ export const updateUserProfile = async (
     const updatePayload: Record<string, unknown> = {
       name,
       email,
+      phone,
       profile_photo: profilePhoto,
       profilePhoto,
     };
@@ -389,13 +782,13 @@ export const updateUserProfile = async (
 
   if (favouriteTeacher) {
     ensureUsersColumns();
-    db.prepare("UPDATE users SET name = ?, email = ?, profile_photo = ?, favourite_teacher = ? WHERE id = ?")
-      .run(name, email, profilePhoto, favouriteTeacher, userId);
+    db.prepare("UPDATE users SET name = ?, email = ?, phone = ?, profile_photo = ?, favourite_teacher = ? WHERE id = ?")
+      .run(name, email, phone, profilePhoto, favouriteTeacher, userId);
     return;
   }
 
-  db.prepare("UPDATE users SET name = ?, email = ?, profile_photo = ? WHERE id = ?")
-    .run(name, email, profilePhoto, userId);
+  db.prepare("UPDATE users SET name = ?, email = ?, phone = ?, profile_photo = ? WHERE id = ?")
+    .run(name, email, phone, profilePhoto, userId);
 };
 
 export const setUserSecuredPassword = async (userId: number, securedPassword: string): Promise<void> => {

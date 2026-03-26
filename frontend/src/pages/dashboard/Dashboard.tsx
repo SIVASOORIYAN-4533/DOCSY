@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { 
   Files, 
   Upload, 
-  Search, 
+  MessageSquare,
   Share2, 
   Clock, 
   CheckCircle2, 
@@ -19,6 +19,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user }: DashboardProps) {
+  const [chatbotName, setChatbotName] = useState("Agastiya");
   const [stats, setStats] = useState({
     total: 0,
     recent: 0,
@@ -30,6 +31,37 @@ export default function Dashboard({ user }: DashboardProps) {
   useEffect(() => {
     fetchDocs();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadChatbotName = async () => {
+      try {
+        const response = await fetch("/api/chat/name", {
+          headers: { "Authorization": `Bearer ${getAuthToken()}` },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json().catch(() => ({}))) as { name?: string };
+        if (!active) {
+          return;
+        }
+
+        const resolvedName = String(data.name || "").trim() || "Agastiya";
+        setChatbotName(resolvedName);
+      } catch {
+        // Keep fallback name if request fails.
+      }
+    };
+
+    void loadChatbotName();
+    return () => {
+      active = false;
+    };
+  }, [user.id]);
 
   const fetchDocs = async () => {
     try {
@@ -176,9 +208,9 @@ export default function Dashboard({ user }: DashboardProps) {
             </Link>
             
             <Link to="/search" className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all">
-              <Search className="w-8 h-8 mb-4 text-indigo-600 dark:text-indigo-300 group-hover:scale-110 transition-transform" />
-              <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">Smart Search</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Find documents using AI-powered keyword and content search.</p>
+              <MessageSquare className="w-8 h-8 mb-4 text-indigo-600 dark:text-indigo-300 group-hover:scale-110 transition-transform" />
+              <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">Chat with {chatbotName}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Ask questions or upload files for summaries and topic-based answers.</p>
             </Link>
           </div>
         </div>

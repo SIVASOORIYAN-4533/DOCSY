@@ -1,20 +1,21 @@
 import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { 
   LayoutDashboard, 
   Upload, 
   Files, 
-  Search, 
+  MessageSquare, 
   Share2, 
   BarChart3, 
-  Settings, 
+  User as ProfileIcon, 
   LogOut,
   Lock,
   ChevronLeft,
   ChevronRight,
-  Menu
 } from "lucide-react";
 import { User } from "../../types";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
+import { getAuthToken } from "../../utils/authStorage";
 
 interface SidebarProps {
   user: User;
@@ -24,17 +25,56 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }: SidebarProps) {
-  const roleLabel = "User";
+  const [chatbotName, setChatbotName] = useState("Agastiya");
+
+  useEffect(() => {
+    let active = true;
+
+    const loadChatbotName = async () => {
+      try {
+        const response = await fetch("/api/chat/name", {
+          headers: {
+            Authorization: `Bearer ${getAuthToken()}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json().catch(() => ({}))) as { name?: string };
+        const resolvedName = String(data.name || "").trim() || "Agastiya";
+        if (!active) {
+          return;
+        }
+
+        setChatbotName(resolvedName);
+      } catch {
+        // Keep default sidebar label when request fails.
+      }
+    };
+
+    const handleNameUpdated = () => {
+      void loadChatbotName();
+    };
+
+    void loadChatbotName();
+    window.addEventListener("chatbot-name-updated", handleNameUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener("chatbot-name-updated", handleNameUpdated);
+    };
+  }, [user?.id]);
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
     { icon: Upload, label: "Upload Document", path: "/upload" },
     { icon: Files, label: "My Documents", path: "/documents" },
     { icon: Lock, label: "Secured Documents", path: "/secured" },
-    { icon: Search, label: "Smart Search", path: "/search" },
+    { icon: MessageSquare, label: `Chat with ${chatbotName}`, path: "/search" },
     { icon: Share2, label: "Shared Files", path: "/shared" },
     { icon: BarChart3, label: "Analytics", path: "/analytics" },
-    { icon: Settings, label: "Settings", path: "/settings" },
+    { icon: ProfileIcon, label: "Profile", path: "/settings" },
   ];
 
   return (
@@ -92,25 +132,6 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
       </nav>
 
       <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 mb-4`}>
-          <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shrink-0 overflow-hidden">
-            {user?.profilePhoto ? (
-              <img src={user.profilePhoto} alt={user?.name || "User"} className="w-full h-full object-cover" />
-            ) : (
-              user?.name?.[0]?.toUpperCase() || "U"
-            )}
-          </div>
-          {!isCollapsed && (
-            <motion.div 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="overflow-hidden"
-            >
-              <p className="text-sm font-semibold truncate">{user?.name || "User"}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{roleLabel}</p>
-            </motion.div>
-          )}
-        </div>
         <button
           onClick={onLogout}
           title={isCollapsed ? "Logout" : ""}

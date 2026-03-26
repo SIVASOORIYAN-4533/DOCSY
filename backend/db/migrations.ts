@@ -8,6 +8,7 @@ const INITIAL_SCHEMA = `
     password TEXT NOT NULL,
     role TEXT DEFAULT 'user',
     phone TEXT,
+    chatbot_name TEXT,
     favourite_teacher TEXT,
     secured_password TEXT,
     profile_photo TEXT
@@ -53,6 +54,23 @@ const INITIAL_SCHEMA = `
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS chat_history (
+    user_id INTEGER PRIMARY KEY,
+    messages TEXT NOT NULL DEFAULT '[]',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_conversations (
+    conversation_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    messages TEXT NOT NULL DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
   CREATE INDEX IF NOT EXISTS idx_documents_upload_date ON documents(upload_date);
   CREATE INDEX IF NOT EXISTS idx_documents_is_secured ON documents(is_secured);
@@ -61,6 +79,8 @@ const INITIAL_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
   CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+  CREATE INDEX IF NOT EXISTS idx_chat_history_updated_at ON chat_history(updated_at);
+  CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_updated ON chat_conversations(user_id, updated_at);
 `;
 
 const hasColumn = (table: string, column: string): boolean => {
@@ -118,6 +138,7 @@ export const runMigrations = (): void => {
   addColumn("users", "profile_photo", "TEXT");
   addColumn("users", "favourite_teacher", "TEXT");
   addColumn("users", "phone", "TEXT");
+  addColumn("users", "chatbot_name", "TEXT");
   addColumn("documents", "is_secured", "INTEGER DEFAULT 0");
   addColumn("documents", "content", "TEXT");
   addColumn("sharing", "created_at", "DATETIME");

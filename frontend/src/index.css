@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap");
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -19,4 +20,39 @@
   }
 }
 
+@layer utilities {
+  .agastiya-display {
+    font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+  }
+}
 
+@layer components {
+  .agastiya-markdown p + p {
+    margin-top: 0.5rem;
+  }
+
+  .agastiya-markdown ul,
+  .agastiya-markdown ol {
+    margin: 0.5rem 0;
+    padding-left: 1rem;
+  }
+
+  .agastiya-markdown li + li {
+    margin-top: 0.25rem;
+  }
+
+  .agastiya-markdown h1,
+  .agastiya-markdown h2,
+  .agastiya-markdown h3,
+  .agastiya-markdown h4 {
+    margin: 0.5rem 0 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .agastiya-markdown strong {
+    font-weight: 700;
+  }
+}

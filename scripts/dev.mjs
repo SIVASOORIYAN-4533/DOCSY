@@ -8,6 +8,11 @@ const parsePort = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
 const canUsePort = (port) =>
   new Promise((resolve, reject) => {
     const tester = net.createServer();
@@ -52,6 +57,15 @@ const findAvailablePort = async (preferredPort, searchLimit, reservedPorts = new
   );
 };
 
+const existingBackendSupportsChatConversations = async (backendUrl) => {
+  try {
+    const response = await fetch(`${backendUrl}/api/chat/conversations`, { method: "GET" });
+    return response.status === 200 || response.status === 401 || response.status === 403;
+  } catch {
+    return false;
+  }
+};
+
 const startProcess = (scriptName, envVars, label) => {
   const childProcess = spawn(`npm run ${scriptName}`, {
     stdio: ["ignore", "pipe", "pipe"],
@@ -74,14 +88,45 @@ const main = async () => {
   dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
   dotenv.config();
 
-  const portSearchLimit = 20;
+  const backendPortSearchLimit = parsePositiveInt(process.env.PORT_SEARCH_LIMIT, 20);
+  const frontendPortSearchLimit = parsePositiveInt(process.env.VITE_PORT_SEARCH_LIMIT, 20);
   const preferredBackendPort = parsePort(process.env.PORT, 5001);
   const preferredFrontendPort = parsePort(process.env.VITE_PORT, 5173);
 
-  const backendPort = await findAvailablePort(preferredBackendPort, portSearchLimit);
+  const canUsePreferredBackendPort = await canUsePort(preferredBackendPort);
+  const preferredBackendUrl = `http://localhost:${preferredBackendPort}`;
+  const shouldCheckCompatibility = !canUsePreferredBackendPort && backendPortSearchLimit === 0;
+  let reuseExistingBackend = shouldCheckCompatibility;
+
+  if (shouldCheckCompatibility) {
+    const isCompatible = await existingBackendSupportsChatConversations(preferredBackendUrl);
+    if (!isCompatible) {
+      reuseExistingBackend = false;
+      console.warn(
+        `Port ${preferredBackendPort} is occupied by an incompatible backend process. ` +
+        "Starting a new backend process on another port.",
+      );
+    }
+  }
+
+  const effectiveBackendSearchLimit =
+    !canUsePreferredBackendPort && backendPortSearchLimit === 0 && !reuseExistingBackend
+      ? 20
+      : backendPortSearchLimit;
+
+  const backendPort = reuseExistingBackend
+    ? preferredBackendPort
+    : await findAvailablePort(preferredBackendPort, effectiveBackendSearchLimit);
+
+  if (reuseExistingBackend) {
+    console.warn(
+      `Port ${preferredBackendPort} is in use. Reusing existing backend on http://localhost:${preferredBackendPort}.`,
+    );
+  }
+
   const frontendPort = await findAvailablePort(
     preferredFrontendPort,
-    portSearchLimit,
+    frontendPortSearchLimit,
     new Set([backendPort]),
   );
 
@@ -108,9 +153,9 @@ const main = async () => {
     FRONTEND_BASE_URL: frontendUrl,
   };
 
-  const backendProcess = startProcess("dev:backend", sharedEnv, "backend");
+  const backendProcess = reuseExistingBackend ? null : startProcess("dev:backend", sharedEnv, "backend");
   const frontendProcess = startProcess("dev:frontend", sharedEnv, "frontend");
-  const childProcesses = [backendProcess, frontendProcess];
+  const childProcesses = [backendProcess, frontendProcess].filter(Boolean);
 
   let isStopping = false;
   const stopAll = (code = 0) => {
@@ -130,13 +175,15 @@ const main = async () => {
     }, 50).unref();
   };
 
-  backendProcess.on("exit", (code) => {
-    if (isStopping) {
-      return;
-    }
-    console.error(`Backend process exited with code ${code ?? 0}. Stopping frontend process.`);
-    stopAll(code ?? 0);
-  });
+  if (backendProcess) {
+    backendProcess.on("exit", (code) => {
+      if (isStopping) {
+        return;
+      }
+      console.error(`Backend process exited with code ${code ?? 0}. Stopping frontend process.`);
+      stopAll(code ?? 0);
+    });
+  }
 
   frontendProcess.on("exit", (code) => {
     if (isStopping) {
