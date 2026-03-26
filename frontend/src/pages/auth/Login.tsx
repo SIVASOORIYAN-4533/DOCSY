@@ -21,7 +21,6 @@ export default function Login({ onLogin }: LoginProps) {
   const [forgotTeacherAnswer, setForgotTeacherAnswer] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
   const parseJsonSafe = async (response: Response): Promise<Record<string, any>> => {
@@ -81,7 +80,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       const data = await parseJsonSafe(response);
       if (response.ok) {
-        onLogin(data.user, data.token, rememberMe);
+        onLogin(data.user, data.token, false);
         navigate("/");
       } else {
         setError(data.error || "Login failed");
@@ -303,16 +302,7 @@ export default function Login({ onLogin }: LoginProps) {
             )}
 
             {!isForgotMode && (
-              <div className="flex items-center justify-between text-sm px-1">
-                <label className="flex items-center gap-2 text-indigo-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-white/10 bg-white/5 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span>Remember me</span>
-                </label>
+              <div className="flex items-center justify-end text-sm px-1">
                 <button
                   type="button"
                   onClick={() => {
