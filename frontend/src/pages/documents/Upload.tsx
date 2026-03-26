@@ -146,7 +146,7 @@ export default function Upload({ user }: UploadProps) {
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}
-            className={`relative border-2 border-dashed rounded-3xl p-12 text-center transition-all ${
+            className={`relative border-2 border-dashed rounded-3xl p-6 sm:p-12 text-center transition-all ${
               isDragging 
                 ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20" 
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-600"
@@ -210,7 +210,7 @@ export default function Upload({ user }: UploadProps) {
           </AnimatePresence>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-5">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-5">
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Document Title</label>
             <input
@@ -222,7 +222,7 @@ export default function Upload({ user }: UploadProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Category</label>
               <select

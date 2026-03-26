@@ -12,6 +12,7 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { User } from "../../types";
 import { motion } from "motion/react";
@@ -22,9 +23,20 @@ interface SidebarProps {
   onLogout: () => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  isDesktop: boolean;
+  isMobileOpen: boolean;
+  onCloseMobile: () => void;
 }
 
-export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }: SidebarProps) {
+export default function Sidebar({
+  user,
+  onLogout,
+  isCollapsed,
+  setIsCollapsed,
+  isDesktop,
+  isMobileOpen,
+  onCloseMobile,
+}: SidebarProps) {
   const [chatbotName, setChatbotName] = useState("Agastiya");
 
   useEffect(() => {
@@ -79,20 +91,36 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
 
   return (
     <aside
-      className={`${isCollapsed ? "w-20" : "w-64"} bg-white dark:bg-slate-900 text-slate-700 dark:text-white border-r border-slate-200 dark:border-slate-800 flex flex-col h-full transition-all duration-300 relative`}
+      className={`${
+        isDesktop
+          ? `${isCollapsed ? "w-20" : "w-64"} relative h-full`
+          : `fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`
+      } bg-white dark:bg-slate-900 text-slate-700 dark:text-white border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300`}
     >
-      <button 
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-20 bg-indigo-600 text-white p-1 rounded-full border-2 border-white dark:border-slate-950 shadow-lg z-50 hover:bg-indigo-500 transition-colors"
-      >
-        {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-      </button>
+      {isDesktop ? (
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-20 bg-indigo-600 text-white p-1 rounded-full border-2 border-white dark:border-slate-950 shadow-lg z-50 hover:bg-indigo-500 transition-colors"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          className="absolute right-3 top-3 p-2 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Close sidebar"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
 
-      <div className={`p-6 flex items-center ${isCollapsed ? "justify-center" : "gap-3"} border-b border-slate-200 dark:border-slate-800`}>
+      <div className={`p-5 sm:p-6 flex items-center ${isDesktop && isCollapsed ? "justify-center" : "gap-3"} border-b border-slate-200 dark:border-slate-800`}>
         <div className="bg-indigo-600 p-2 rounded-full shrink-0 overflow-hidden">
           <img src="/docsylogo-mark.png" alt="DOCSY logo" className="w-6 h-6 object-cover rounded-full" />
         </div>
-        {!isCollapsed && (
+        {(!isDesktop || !isCollapsed) && (
           <motion.h1 
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -108,9 +136,14 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
           <NavLink
             key={item.path}
             to={item.path}
-            title={isCollapsed ? item.label : ""}
+            title={isDesktop && isCollapsed ? item.label : ""}
+            onClick={() => {
+              if (!isDesktop) {
+                onCloseMobile();
+              }
+            }}
             className={({ isActive }) =>
-              `flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 rounded-xl transition-all duration-200 ${
+              `flex items-center ${isDesktop && isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
                   : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
@@ -118,7 +151,7 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
             }
           >
             <item.icon className="w-5 h-5 shrink-0" />
-            {!isCollapsed && (
+            {(!isDesktop || !isCollapsed) && (
               <motion.span 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -133,12 +166,17 @@ export default function Sidebar({ user, onLogout, isCollapsed, setIsCollapsed }:
 
       <div className="p-4 border-t border-slate-200 dark:border-slate-800">
         <button
-          onClick={onLogout}
-          title={isCollapsed ? "Logout" : ""}
-          className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors`}
+          onClick={() => {
+            onLogout();
+            if (!isDesktop) {
+              onCloseMobile();
+            }
+          }}
+          title={isDesktop && isCollapsed ? "Logout" : ""}
+          className={`flex items-center ${isDesktop && isCollapsed ? "justify-center" : "gap-3"} px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-colors`}
         >
           <LogOut className="w-5 h-5 shrink-0" />
-          {!isCollapsed && (
+          {(!isDesktop || !isCollapsed) && (
             <motion.span 
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}

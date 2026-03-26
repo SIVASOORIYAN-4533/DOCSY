@@ -273,7 +273,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
             setMessage("");
             setIsShareModalOpen(true);
           }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors"
+          className="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors"
         >
           <Upload className="w-4 h-4" />
           Share File
@@ -295,7 +295,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 text-sm text-slate-500 dark:text-slate-400">No pending requests.</div>
             ) : (
               incomingPending.map((doc) => (
-                <div key={`pending-${doc.id}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                <div key={`pending-${doc.id}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center gap-4">
                   <FileText className="w-6 h-6 text-indigo-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{doc.title}</p>
@@ -303,13 +303,13 @@ export default function SharedFiles({ user }: SharedFilesProps) {
                   </div>
                   <button
                     onClick={() => void respondToShare(doc.id, "accept")}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-500"
+                    className="inline-flex w-full sm:w-auto justify-center items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-500"
                   >
                     <Check className="w-4 h-4" /> Accept
                   </button>
                   <button
                     onClick={() => void respondToShare(doc.id, "decline")}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-500"
+                    className="inline-flex w-full sm:w-auto justify-center items-center gap-1 px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-500"
                   >
                     <Ban className="w-4 h-4" /> Decline
                   </button>
@@ -324,7 +324,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 text-sm text-slate-500 dark:text-slate-400">No accepted shared files.</div>
             ) : (
               incomingAccepted.map((doc) => (
-                <div key={`accepted-${doc.id}`} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
+                <div key={`accepted-${doc.id}`} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6">
                   <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-2xl">
                     <FileText className="w-8 h-8" />
                   </div>
@@ -335,7 +335,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
                       {doc.shared_at ? new Date(doc.shared_at).toLocaleString() : new Date(doc.upload_date).toLocaleString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full sm:w-auto items-center justify-end gap-2">
                     <button onClick={() => void handleView(doc)} className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" title="View">
                       <Eye className="w-4 h-4" />
                     </button>
@@ -357,7 +357,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 text-sm text-slate-500 dark:text-slate-400">No files shared by you yet.</div>
             ) : (
               sharedByMeDocs.map((doc) => (
-                <div key={`outgoing-${doc.id}-${doc.shared_to_email || "unknown"}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+                <div key={`outgoing-${doc.id}-${doc.shared_to_email || "unknown"}`} className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="min-w-0">
                     <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{doc.title}</p>
                     <p className="text-sm text-slate-500 dark:text-slate-400 truncate">To: {doc.shared_to_email || "Unknown"}</p>
@@ -383,7 +383,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
 
       <AnimatePresence>
         {pendingDeleteDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -426,7 +426,7 @@ export default function SharedFiles({ user }: SharedFilesProps) {
 
       <AnimatePresence>
         {isShareModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

@@ -1,4 +1,4 @@
-import { Bell, Search, Sun, Moon } from "lucide-react";
+import { Bell, Search, Sun, Moon, Menu } from "lucide-react";
 import { NotificationItem, User } from "../../types";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,9 +7,10 @@ import { buildApiUrl } from "../../utils/api";
 
 interface NavbarProps {
   user: User;
+  onMenuToggle: () => void;
 }
 
-export default function Navbar({ user }: NavbarProps) {
+export default function Navbar({ user, onMenuToggle }: NavbarProps) {
   const [isDark, setIsDark] = useState(localStorage.getItem("theme") === "dark");
   const [search, setSearch] = useState("");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -182,9 +183,18 @@ export default function Navbar({ user }: NavbarProps) {
   };
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 transition-colors">
-      <div className="flex-1 max-w-xl">
-        <form onSubmit={handleSearch} className="relative group">
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-4 lg:px-8 gap-2 sm:gap-3 transition-colors">
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <form onSubmit={handleSearch} className="relative group hidden sm:block flex-1 max-w-xl">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
           <input
             type="text"
@@ -194,9 +204,18 @@ export default function Navbar({ user }: NavbarProps) {
             className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
           />
         </form>
+
+        <button
+          type="button"
+          onClick={() => navigate("/search")}
+          className="sm:hidden p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Open search"
+        >
+          <Search className="w-5 h-5" />
+        </button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-3">
         <button 
           onClick={() => setIsDark(!isDark)}
           className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -218,7 +237,7 @@ export default function Navbar({ user }: NavbarProps) {
             ) : null}
           </button>
           {isNotificationsOpen && (
-            <div className="absolute right-0 mt-2 w-96 max-w-[90vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg z-20 overflow-hidden">
+            <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1rem))] sm:w-96 max-w-[95vw] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg z-20 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Notifications</p>
               </div>
@@ -260,12 +279,12 @@ export default function Navbar({ user }: NavbarProps) {
           )}
         </div>
 
-        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
+        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
         <button
           type="button"
           onClick={() => navigate("/settings?tab=profile")}
-          className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 p-1 rounded-lg transition-colors"
+          className="flex items-center gap-2 sm:gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 p-1 rounded-lg transition-colors"
           title="Open Profile"
         >
           <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm overflow-hidden">

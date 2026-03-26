@@ -166,7 +166,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 w-full max-w-md text-center"
+          className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 w-full max-w-md text-center"
         >
           <div className="bg-indigo-50 dark:bg-indigo-900/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Lock className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
@@ -273,7 +273,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
 
   return (
     <div className="space-y-8">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Lock className="w-5 h-5 text-indigo-600" />
@@ -283,7 +283,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         </div>
         <button 
           onClick={handleLockVault}
-          className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+          className="w-full sm:w-auto px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors"
         >
           Lock Vault
         </button>
@@ -291,7 +291,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
         {loading ? (
-          <div className="p-20 flex flex-col items-center justify-center text-slate-400">
+          <div className="p-10 sm:p-20 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-10 h-10 animate-spin mb-4" />
             <p className="font-medium">Unlocking your vault...</p>
           </div>
@@ -341,7 +341,7 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
             </table>
           </div>
         ) : (
-          <div className="p-20 text-center">
+          <div className="p-10 sm:p-20 text-center">
             <div className="bg-slate-50 dark:bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
               <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>

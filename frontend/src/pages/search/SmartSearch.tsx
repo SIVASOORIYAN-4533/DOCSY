@@ -287,7 +287,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-5xl flex-col gap-4 text-slate-900 dark:text-slate-100">
+    <div className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-5xl flex-col gap-4 text-slate-900 dark:text-slate-100">
       <header className="space-y-2">
         <div className="agastiya-display inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-sm text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
           <Sparkles className="h-4 w-4" />
@@ -389,7 +389,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
         onSubmit={handleSubmit}
         className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -407,7 +407,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
             className="hidden"
           />
 
-          <div className="relative flex-1">
+          <div className="relative min-w-0 basis-full flex-1 sm:basis-auto">
             <MessageSquare className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
@@ -427,7 +427,7 @@ export default function SmartSearch({ user }: SmartSearchProps) {
           <button
             type="submit"
             disabled={sending || uploading || !input.trim()}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+            className="inline-flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
           >
             <SendHorizontal className="h-4 w-4" />
             Send

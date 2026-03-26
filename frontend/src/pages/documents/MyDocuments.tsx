@@ -537,8 +537,8 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
           <p className="text-slate-500 dark:text-slate-400">Manage and organize your document library.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
@@ -548,7 +548,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-64 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
           <div ref={filterMenuRef} className="relative">
@@ -561,7 +561,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
             </button>
 
             {isFilterMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 z-30 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 space-y-4">
+              <div className="absolute right-0 mt-2 w-[min(18rem,calc(100vw-2rem))] z-30 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 space-y-4">
                 <div className="space-y-2">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sort By</p>
                   {[
@@ -642,7 +642,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
         {loading ? (
-          <div className="p-20 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+          <div className="p-10 sm:p-20 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
             <Loader2 className="w-10 h-10 animate-spin mb-4" />
             <p className="font-medium">Loading your documents...</p>
           </div>
@@ -665,7 +665,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
             </table>
           </div>
         ) : (
-          <div className="p-20 text-center">
+          <div className="p-10 sm:p-20 text-center">
             <div className="bg-slate-50 dark:bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
               <Files className="w-10 h-10 text-slate-300 dark:text-slate-500" />
             </div>
@@ -674,11 +674,11 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
           </div>
         )}
 
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+        <div className="px-4 sm:px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center sm:text-left">
             Showing {pageStart}-{pageEnd} of {ownedFilteredDocs.length} documents
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <button
               className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-30"
               disabled={currentPageSafe === 1}
@@ -738,7 +738,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       {/* Sharing Modal */}
       <AnimatePresence>
         {shareDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -794,7 +794,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
       <AnimatePresence>
         {pendingDeleteDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -837,7 +837,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
       <AnimatePresence>
         {pendingShareDownloadDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -882,7 +882,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
       {/* Document Viewer Modal (Simplified) */}
       <AnimatePresence>
         {selectedDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -894,22 +894,22 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-5xl h-[80vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+              className="relative w-full max-w-5xl h-[88vh] sm:h-[80vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-4">
+              <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-900">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-2xl">
                     <FileText className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{selectedDoc.title}</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white break-words">{selectedDoc.title}</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Uploaded on {new Date(selectedDoc.upload_date).toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex w-full sm:w-auto items-center justify-end gap-2 sm:gap-3">
                   <button 
                     onClick={() => handleDownload(selectedDoc)}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors"
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-colors"
                   >
                     <Download className="w-4 h-4" /> Download
                   </button>
@@ -922,9 +922,9 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
                 </div>
               </div>
               
-              <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-8 overflow-y-auto">
-                <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-700 rounded-xl p-12 min-h-full">
-                  <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">{selectedDoc.title}</h1>
+              <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-4 sm:p-8 overflow-y-auto">
+                <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-700 rounded-xl p-5 sm:p-12 min-h-full">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-8 break-words">{selectedDoc.title}</h1>
                   <div className="space-y-4 text-slate-600 dark:text-slate-300 leading-relaxed">
                     <p className="font-medium text-slate-900 dark:text-slate-100">Document Metadata:</p>
                     <ul className="list-disc list-inside space-y-2">
@@ -934,14 +934,14 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
                       <li>Description: {selectedDoc.description}</li>
                     </ul>
                     {selectedDoc.content ? (
-                      <div className="mt-8 p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
+                      <div className="mt-8 p-4 sm:p-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
                         <p className="font-medium text-slate-900 dark:text-slate-100 mb-3">Extracted Content</p>
                         <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                           {selectedDoc.content}
                         </pre>
                       </div>
                     ) : (
-                      <div className="mt-12 p-8 bg-slate-50 dark:bg-slate-800/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center">
+                      <div className="mt-12 p-5 sm:p-8 bg-slate-50 dark:bg-slate-800/60 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-center">
                         <p className="text-slate-400 dark:text-slate-500 italic">
                           Preview content is not available yet for this file.
                         </p>

@@ -214,7 +214,7 @@ export default function Analytics() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
+            className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
           >
             <div className="mb-5">
               <h3 className="font-bold text-slate-900 dark:text-slate-100">Storage Overview</h3>
@@ -223,7 +223,7 @@ export default function Analytics() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 items-end min-h-[220px]">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end min-h-[220px]">
               {[
                 { label: "Total Memory", value: totalMemoryLabel, color: "bg-indigo-500", percent: 1 },
                 { label: "Storage Used", value: usedMemoryLabel, color: "bg-emerald-500", percent: usedStorageRatio },
@@ -264,7 +264,7 @@ export default function Analytics() {
         </div>
       ) : null}
 
-      <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <BarChart3 className="w-6 h-6 text-indigo-600 dark:text-indigo-300" />
           <div>
@@ -278,8 +278,8 @@ export default function Analytics() {
             No documents available yet to generate category analytics.
           </div>
         ) : (
-          <div className="rounded-3xl bg-slate-950 p-4 md:p-5 border border-slate-800">
-              <svg viewBox="0 0 500 320" className="w-full h-auto max-w-[760px] mx-auto">
+          <div className="rounded-3xl bg-slate-950 p-4 md:p-5 border border-slate-800 overflow-x-auto">
+              <svg viewBox="0 0 500 320" className="h-auto max-w-[760px] min-w-[500px] w-full mx-auto">
                 {pieSegments.map((segment) => (
                   <path
                     key={`slice-${segment.category}`}
@@ -332,7 +332,7 @@ export default function Analytics() {
                       fontWeight="600"
                       fill={segment.color}
                     >
-                      {`${segment.percentage.toFixed(1)}% • ${segment.count} file${segment.count === 1 ? "" : "s"}`}
+                      {`${segment.percentage.toFixed(1)}% - ${segment.count} file${segment.count === 1 ? "" : "s"}`}
                     </text>
                     <text
                       x={segment.labelTextX}
@@ -353,3 +353,4 @@ export default function Analytics() {
     </div>
   );
 }
+
