@@ -9,6 +9,11 @@ interface SettingsProps {
 }
 
 type SettingsTab = "profile" | "security";
+const DEFAULT_CHATBOT_NAME = "Agastiya";
+const MAX_CHATBOT_NAME_LENGTH = 40;
+
+const normalizeChatbotNameInput = (value: string): string =>
+  value.trim().replace(/\s+/g, " ");
 
 const resolveTab = (search: string): SettingsTab => {
   const tab = new URLSearchParams(search).get("tab");
@@ -28,6 +33,12 @@ export default function Settings({ user }: SettingsProps) {
   const [profilePhone, setProfilePhone] = useState(user?.phone || "");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.profilePhoto || null);
   const [favouriteTeacher, setFavouriteTeacher] = useState("");
+  const [chatbotName, setChatbotName] = useState(DEFAULT_CHATBOT_NAME);
+  const [chatbotNameDraft, setChatbotNameDraft] = useState(DEFAULT_CHATBOT_NAME);
+  const [chatbotLoading, setChatbotLoading] = useState(false);
+  const [chatbotSaving, setChatbotSaving] = useState(false);
+  const [chatbotMessage, setChatbotMessage] = useState("");
+  const [chatbotError, setChatbotError] = useState("");
 
   const [securedPassword, setSecuredPassword] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
@@ -116,10 +127,55 @@ export default function Settings({ user }: SettingsProps) {
     setProfileMessage("");
     setSecurityError("");
     setSecurityMessage("");
+    setChatbotError("");
+    setChatbotMessage("");
     if (typeof user?.hasSecuredPassword === "boolean") {
       setIsVaultPasswordSet(user.hasSecuredPassword);
     }
   }, [user]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadChatbotName = async () => {
+      setChatbotLoading(true);
+      try {
+        const response = await fetch("/api/chat/name", {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json().catch(() => ({}))) as { name?: string };
+        const resolvedName = normalizeChatbotNameInput(data.name || "") || DEFAULT_CHATBOT_NAME;
+        if (!active) {
+          return;
+        }
+
+        setChatbotName(resolvedName);
+        setChatbotNameDraft(resolvedName);
+      } catch {
+        // Keep default/fallback chatbot name when request fails.
+      } finally {
+        if (active) {
+          setChatbotLoading(false);
+        }
+      }
+    };
+
+    const handleNameUpdated = () => {
+      void loadChatbotName();
+    };
+
+    void loadChatbotName();
+    window.addEventListener("chatbot-name-updated", handleNameUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener("chatbot-name-updated", handleNameUpdated);
+    };
+  }, [user?.id]);
 
   const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -279,6 +335,51 @@ export default function Settings({ user }: SettingsProps) {
     }
   };
 
+  const handleSaveChatbotName = async () => {
+    const normalizedName = normalizeChatbotNameInput(chatbotNameDraft);
+
+    setChatbotError("");
+    setChatbotMessage("");
+
+    if (!normalizedName) {
+      setChatbotError("Chatbot name is required.");
+      return;
+    }
+
+    if (normalizedName.length > MAX_CHATBOT_NAME_LENGTH) {
+      setChatbotError(`Chatbot name must be ${MAX_CHATBOT_NAME_LENGTH} characters or less.`);
+      return;
+    }
+
+    setChatbotSaving(true);
+    try {
+      const response = await fetch("/api/chat/name", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({ name: normalizedName }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as { name?: string; error?: string };
+      if (!response.ok) {
+        setChatbotError(data.error || `Rename failed (HTTP ${response.status})`);
+        return;
+      }
+
+      const savedName = normalizeChatbotNameInput(data.name || normalizedName) || DEFAULT_CHATBOT_NAME;
+      setChatbotName(savedName);
+      setChatbotNameDraft(savedName);
+      setChatbotMessage("Chatbot name updated successfully.");
+      window.dispatchEvent(new Event("chatbot-name-updated"));
+    } catch {
+      setChatbotError("An error occurred while renaming the chatbot.");
+    } finally {
+      setChatbotSaving(false);
+    }
+  };
+
   const resetProfileEditing = () => {
     setProfileName(user?.name || "");
     setProfileEmail(user?.email || "");
@@ -303,6 +404,8 @@ export default function Settings({ user }: SettingsProps) {
     !securedPassword.trim() ||
     isVaultPasswordSet === null ||
     (isVaultPasswordSet ? !oldVaultPassword.trim() : !accountPassword.trim());
+  const normalizedChatbotNameDraft = normalizeChatbotNameInput(chatbotNameDraft);
+  const hasChatbotNameChanges = normalizedChatbotNameDraft !== chatbotName;
 
   const displayName = profileName.trim() || "-";
   const displayEmail = profileEmail.trim() || "-";
@@ -344,6 +447,66 @@ export default function Settings({ user }: SettingsProps) {
                     {profileMessage}
                   </div>
                 )}
+
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Chatbot Name</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          This name is saved to your account and used in chat.
+                        </p>
+                      </div>
+                      {chatbotLoading && (
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Loading...</span>
+                      )}
+                    </div>
+
+                    {chatbotError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                        {chatbotError}
+                      </div>
+                    )}
+                    {chatbotMessage && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        {chatbotMessage}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <div className="w-full space-y-1">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Assistant Name
+                        </label>
+                        <input
+                          type="text"
+                          value={chatbotNameDraft}
+                          maxLength={MAX_CHATBOT_NAME_LENGTH}
+                          onChange={(event) => {
+                            setChatbotNameDraft(event.target.value);
+                            setChatbotError("");
+                            setChatbotMessage("");
+                          }}
+                          placeholder="Enter chatbot name"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {normalizedChatbotNameDraft.length}/{MAX_CHATBOT_NAME_LENGTH} characters
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveChatbotName}
+                        disabled={chatbotSaving || chatbotLoading || !hasChatbotNameChanges}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {chatbotSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Save Name
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/60">
                   <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
