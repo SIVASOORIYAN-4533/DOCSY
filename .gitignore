@@ -4,5 +4,8 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.db
+uploads/
+tmp-*.js
 .env*
 !.env.example
