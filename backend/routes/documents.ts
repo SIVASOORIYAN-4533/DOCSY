@@ -34,6 +34,42 @@ const toStoredUploadPath = (absoluteFilePath: string): string => {
   return normalizedUploadDir ? `${normalizedUploadDir}/${fileName}` : fileName;
 };
 
+const findFileByBaseName = (rootDir: string, baseName: string): string | null => {
+  const normalizedBaseName = String(baseName || "").trim().toLowerCase();
+  if (!normalizedBaseName || !fs.existsSync(rootDir)) {
+    return null;
+  }
+
+  const dirsToVisit: string[] = [rootDir];
+  while (dirsToVisit.length > 0) {
+    const currentDir = dirsToVisit.pop();
+    if (!currentDir) {
+      continue;
+    }
+
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        dirsToVisit.push(entryPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.toLowerCase() === normalizedBaseName) {
+        return entryPath;
+      }
+    }
+  }
+
+  return null;
+};
+
 const resolveExistingDocumentPath = (storedPath: string): string | null => {
   const raw = String(storedPath || "").trim();
   if (!raw) {
@@ -69,6 +105,13 @@ const resolveExistingDocumentPath = (storedPath: string): string | null => {
   for (const candidate of uniqueCandidates) {
     if (fs.existsSync(candidate)) {
       return candidate;
+    }
+  }
+
+  if (baseName) {
+    const discoveredPath = findFileByBaseName(uploadsRoot, baseName);
+    if (discoveredPath) {
+      return discoveredPath;
     }
   }
 
