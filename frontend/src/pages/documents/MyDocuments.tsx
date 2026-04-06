@@ -283,27 +283,107 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     }
   };
 
+  const findExistingOwnedCopy = (
+    sourceDoc: Document,
+    docsToSearch: Document[] = docs,
+  ): Document | undefined => {
+    const normalizedTitle = String(sourceDoc.title || "").trim();
+    const normalizedMime = String(sourceDoc.mime_type || "").trim().toLowerCase();
+    const normalizedSize = Number(sourceDoc.size || 0);
+
+    return docsToSearch.find((candidate) => {
+      if (candidate.user_id !== user.id) {
+        return false;
+      }
+
+      return (
+        String(candidate.title || "").trim() === normalizedTitle &&
+        String(candidate.mime_type || "").trim().toLowerCase() === normalizedMime &&
+        Number(candidate.size || 0) === normalizedSize
+      );
+    });
+  };
+
+  const ensureSharedDocSavedToMyDocuments = async (sourceDoc: Document): Promise<number> => {
+    const existingOwnedDoc = findExistingOwnedCopy(sourceDoc);
+    if (existingOwnedDoc) {
+      return existingOwnedDoc.id;
+    }
+
+    const response = await fetch(`/api/documents/${sourceDoc.id}/copy-to-my-documents`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+    });
+
+    let copiedDocId = 0;
+
+    if (response.ok) {
+      const data = await parseJsonSafe(response);
+      copiedDocId = Number(data?.id || 0);
+    } else {
+      const data = await parseJsonSafe(response);
+      const message = String(data?.error || "");
+      const normalizedMessage = message.toLowerCase();
+      const shouldFallback =
+        response.status === 404 ||
+        response.status === 405 ||
+        normalizedMessage.includes("cannot post") ||
+        normalizedMessage.includes("server returned html");
+
+      if (!shouldFallback) {
+        throw new Error(message || "Unable to save this shared file to your documents.");
+      }
+
+      copiedDocId = await copySharedDocViaDownloadAndUpload(sourceDoc);
+    }
+
+    if (!Number.isFinite(copiedDocId) || copiedDocId <= 0) {
+      copiedDocId = await copySharedDocViaDownloadAndUpload(sourceDoc);
+    }
+
+    const refreshedDocs = await fetchDocs();
+    const refreshedOwnedDoc =
+      refreshedDocs.find((doc) => doc.id === copiedDocId) || findExistingOwnedCopy(sourceDoc, refreshedDocs);
+
+    if (refreshedOwnedDoc) {
+      return refreshedOwnedDoc.id;
+    }
+
+    if (Number.isFinite(copiedDocId) && copiedDocId > 0) {
+      return copiedDocId;
+    }
+
+    throw new Error("Unable to save this shared file to your documents.");
+  };
+
   const handleDownload = async (doc: Document) => {
     setError("");
     try {
-      const response = await fetch(`/api/documents/${doc.id}/download`, {
+      let downloadDocId = doc.id;
+      if (doc.user_id !== user.id) {
+        downloadDocId = await ensureSharedDocSavedToMyDocuments(doc);
+      }
+
+      const response = await fetch(`/api/documents/${downloadDocId}/download`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (isHtmlResponse(response)) {
         throw new Error(apiHtmlFallbackError);
       }
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = doc.title;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      } else {
-        setError("Unable to download this document.");
+      if (!response.ok) {
+        const data = await parseJsonSafe(response);
+        throw new Error(data?.error || "Unable to download this document.");
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.title;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       console.error(err);
       setError((err as Error)?.message || "Unable to download this document.");
@@ -521,6 +601,13 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
             title="View"
           >
             <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => void handleDownload(doc)}
+            className="p-2 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-all"
+            title={doc.user_id === user.id ? "Download" : "Download and save"}
+          >
+            <Download className="w-4 h-4" />
           </button>
           <button 
             onClick={() => {
