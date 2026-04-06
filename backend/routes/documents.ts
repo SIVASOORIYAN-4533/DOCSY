@@ -358,6 +358,10 @@ router.post("/:id/copy-to-my-documents", authenticateToken, async (req, res) => 
       sourceDoc.description || "",
     );
 
+    // After a user copies a shared file to their own documents, remove the
+    // original shared-access row so analytics/listing treat it as owned data.
+    await removeSharingForUser(docId, req.user.id);
+
     res.status(201).json({ success: true, id: copiedDocId, title: sourceDoc.title || safeTitle });
   } catch (error) {
     try {

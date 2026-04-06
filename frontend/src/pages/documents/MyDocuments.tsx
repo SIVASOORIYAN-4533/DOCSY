@@ -104,6 +104,18 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     }
   };
 
+  const removeSharedAccessAfterCopy = async (sourceDocId: number): Promise<void> => {
+    try {
+      const token = getAuthToken();
+      await fetch(`/api/documents/${sourceDocId}/shared-access`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Best-effort cleanup to avoid duplicate shared+owned entries.
+    }
+  };
+
   const copySharedDocViaDownloadAndUpload = async (doc: Document): Promise<number> => {
     const token = getAuthToken();
     const downloadResponse = await fetch(`/api/documents/${doc.id}/download`, {
@@ -146,6 +158,10 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
     const uploaded = await parseJsonSafe(uploadResponse);
     if (!uploadResponse.ok || !uploaded?.id) {
       throw new Error(uploaded?.error || "Unable to save this file to your documents.");
+    }
+
+    if (doc.user_id !== user.id) {
+      await removeSharedAccessAfterCopy(doc.id);
     }
 
     return Number(uploaded.id);
@@ -307,6 +323,10 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const ensureSharedDocSavedToMyDocuments = async (sourceDoc: Document): Promise<number> => {
     const existingOwnedDoc = findExistingOwnedCopy(sourceDoc);
     if (existingOwnedDoc) {
+      if (sourceDoc.user_id !== user.id) {
+        await removeSharedAccessAfterCopy(sourceDoc.id);
+        await fetchDocs();
+      }
       return existingOwnedDoc.id;
     }
 
