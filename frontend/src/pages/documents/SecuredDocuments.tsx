@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { User, Document } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
-import { getAuthToken } from "../../utils/authStorage";
+import { getAuthToken, updateStoredUser } from "../../utils/authStorage";
 import { apiHtmlFallbackError, isHtmlResponse } from "../../utils/api";
 
 interface SecuredDocumentsProps {
@@ -97,6 +97,8 @@ export default function SecuredDocuments({ user }: SecuredDocumentsProps) {
         setAccountPassword("");
         setNewPassword("");
         setConfirmPassword("");
+        updateStoredUser({ ...user, hasSecuredPassword: true });
+        window.dispatchEvent(new Event("user-updated"));
         fetchSecuredDocs();
       } else {
         const data = await response.json();

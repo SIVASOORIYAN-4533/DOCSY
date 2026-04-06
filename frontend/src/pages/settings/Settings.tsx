@@ -104,10 +104,10 @@ export default function Settings({ user }: SettingsProps) {
   }, [location.search]);
 
   useEffect(() => {
-    if (activeTab === "security" && isVaultPasswordSet === null) {
+    if (activeTab === "security") {
       void loadVaultStatus();
     }
-  }, [activeTab, isVaultPasswordSet]);
+  }, [activeTab]);
 
   useEffect(() => {
     setProfileName(user?.name || "");
