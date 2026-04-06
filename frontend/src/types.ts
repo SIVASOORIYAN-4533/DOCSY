@@ -4,6 +4,10 @@ export interface User {
   email: string;
   role: "user";
   phone?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  address?: string | null;
   profilePhoto?: string | null;
   hasSecuredPassword?: boolean;
 }

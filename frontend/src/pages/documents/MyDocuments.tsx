@@ -312,21 +312,43 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
   const openInBrowser = async (doc: Document) => {
     setError("");
+    const previewTab = window.open("", "_blank");
     try {
+      if (previewTab && !previewTab.closed) {
+        previewTab.document.title = "Opening document...";
+        if (previewTab.document.body) {
+          previewTab.document.body.textContent = "Loading document preview...";
+        }
+      }
+
       const response = await fetch(`/api/documents/${doc.id}/view`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (isHtmlResponse(response)) {
         throw new Error(apiHtmlFallbackError);
       }
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        window.open(url, "_blank", "noopener,noreferrer");
-      } else {
-        setError("Unable to view this document.");
+      if (!response.ok) {
+        const data = await parseJsonSafe(response);
+        throw new Error(data?.error || "Unable to view this document.");
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      if (previewTab && !previewTab.closed) {
+        previewTab.location.href = url;
+      } else {
+        const fallbackTab = window.open(url, "_blank", "noopener,noreferrer");
+        if (!fallbackTab) {
+          window.location.href = url;
+        }
+      }
+
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
     } catch (err) {
+      if (previewTab && !previewTab.closed) {
+        previewTab.close();
+      }
       console.error(err);
       setError((err as Error)?.message || "Unable to view this document.");
     }

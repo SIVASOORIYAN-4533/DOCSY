@@ -3,17 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { User } from "../../types";
 import { getAuthToken, updateStoredUser } from "../../utils/authStorage";
+import { NATIONALITIES } from "../../constants/nationalities";
 
 interface SettingsProps {
   user: User;
 }
 
 type SettingsTab = "profile" | "security";
-const DEFAULT_CHATBOT_NAME = "Agastiya";
-const MAX_CHATBOT_NAME_LENGTH = 40;
-
-const normalizeChatbotNameInput = (value: string): string =>
-  value.trim().replace(/\s+/g, " ");
 
 const resolveTab = (search: string): SettingsTab => {
   const tab = new URLSearchParams(search).get("tab");
@@ -31,14 +27,12 @@ export default function Settings({ user }: SettingsProps) {
   const [profileName, setProfileName] = useState(user?.name || "");
   const [profileEmail, setProfileEmail] = useState(user?.email || "");
   const [profilePhone, setProfilePhone] = useState(user?.phone || "");
+  const [profileDateOfBirth, setProfileDateOfBirth] = useState(user?.dateOfBirth || "");
+  const [profileGender, setProfileGender] = useState(user?.gender || "");
+  const [profileNationality, setProfileNationality] = useState(user?.nationality || "");
+  const [profileAddress, setProfileAddress] = useState(user?.address || "");
   const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.profilePhoto || null);
   const [favouriteTeacher, setFavouriteTeacher] = useState("");
-  const [chatbotName, setChatbotName] = useState(DEFAULT_CHATBOT_NAME);
-  const [chatbotNameDraft, setChatbotNameDraft] = useState(DEFAULT_CHATBOT_NAME);
-  const [chatbotLoading, setChatbotLoading] = useState(false);
-  const [chatbotSaving, setChatbotSaving] = useState(false);
-  const [chatbotMessage, setChatbotMessage] = useState("");
-  const [chatbotError, setChatbotError] = useState("");
 
   const [securedPassword, setSecuredPassword] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
@@ -119,6 +113,10 @@ export default function Settings({ user }: SettingsProps) {
     setProfileName(user?.name || "");
     setProfileEmail(user?.email || "");
     setProfilePhone(user?.phone || "");
+    setProfileDateOfBirth(user?.dateOfBirth || "");
+    setProfileGender(user?.gender || "");
+    setProfileNationality(user?.nationality || "");
+    setProfileAddress(user?.address || "");
     setProfilePhoto(user?.profilePhoto || null);
     setFavouriteTeacher("");
     setIsEditingProfile(false);
@@ -127,55 +125,10 @@ export default function Settings({ user }: SettingsProps) {
     setProfileMessage("");
     setSecurityError("");
     setSecurityMessage("");
-    setChatbotError("");
-    setChatbotMessage("");
     if (typeof user?.hasSecuredPassword === "boolean") {
       setIsVaultPasswordSet(user.hasSecuredPassword);
     }
   }, [user]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadChatbotName = async () => {
-      setChatbotLoading(true);
-      try {
-        const response = await fetch("/api/chat/name", {
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = (await response.json().catch(() => ({}))) as { name?: string };
-        const resolvedName = normalizeChatbotNameInput(data.name || "") || DEFAULT_CHATBOT_NAME;
-        if (!active) {
-          return;
-        }
-
-        setChatbotName(resolvedName);
-        setChatbotNameDraft(resolvedName);
-      } catch {
-        // Keep default/fallback chatbot name when request fails.
-      } finally {
-        if (active) {
-          setChatbotLoading(false);
-        }
-      }
-    };
-
-    const handleNameUpdated = () => {
-      void loadChatbotName();
-    };
-
-    void loadChatbotName();
-    window.addEventListener("chatbot-name-updated", handleNameUpdated);
-    return () => {
-      active = false;
-      window.removeEventListener("chatbot-name-updated", handleNameUpdated);
-    };
-  }, [user?.id]);
 
   const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -214,6 +167,10 @@ export default function Settings({ user }: SettingsProps) {
       const normalizedName = profileName.trim();
       const normalizedEmail = profileEmail.trim();
       const normalizedPhone = profilePhone.trim();
+      const normalizedDateOfBirth = profileDateOfBirth.trim();
+      const normalizedGender = profileGender.trim();
+      const normalizedNationality = profileNationality.trim();
+      const normalizedAddress = profileAddress.trim();
 
       if (!normalizedName || !normalizedEmail) {
         setProfileError("Name and email are required.");
@@ -231,6 +188,10 @@ export default function Settings({ user }: SettingsProps) {
           name: normalizedName,
           email: normalizedEmail,
           phone: normalizedPhone,
+          dateOfBirth: normalizedDateOfBirth,
+          gender: normalizedGender,
+          nationality: normalizedNationality,
+          address: normalizedAddress,
           profilePhoto,
           favouriteTeacher: favouriteTeacher.trim() || undefined,
         }),
@@ -245,6 +206,10 @@ export default function Settings({ user }: SettingsProps) {
               name: normalizedName,
               email: normalizedEmail,
               phone: normalizedPhone || null,
+              dateOfBirth: normalizedDateOfBirth || null,
+              gender: normalizedGender || null,
+              nationality: normalizedNationality || null,
+              address: normalizedAddress || null,
               profilePhoto,
             };
         updateStoredUser(updatedUser);
@@ -252,6 +217,10 @@ export default function Settings({ user }: SettingsProps) {
         setProfileName(updatedUser.name || normalizedName);
         setProfileEmail(updatedUser.email || normalizedEmail);
         setProfilePhone(updatedUser.phone || "");
+        setProfileDateOfBirth(updatedUser.dateOfBirth || "");
+        setProfileGender(updatedUser.gender || "");
+        setProfileNationality(updatedUser.nationality || "");
+        setProfileAddress(updatedUser.address || "");
         setProfilePhoto(updatedUser.profilePhoto ?? null);
         setFavouriteTeacher("");
         setShowFavouriteTeacherEditor(false);
@@ -335,55 +304,14 @@ export default function Settings({ user }: SettingsProps) {
     }
   };
 
-  const handleSaveChatbotName = async () => {
-    const normalizedName = normalizeChatbotNameInput(chatbotNameDraft);
-
-    setChatbotError("");
-    setChatbotMessage("");
-
-    if (!normalizedName) {
-      setChatbotError("Chatbot name is required.");
-      return;
-    }
-
-    if (normalizedName.length > MAX_CHATBOT_NAME_LENGTH) {
-      setChatbotError(`Chatbot name must be ${MAX_CHATBOT_NAME_LENGTH} characters or less.`);
-      return;
-    }
-
-    setChatbotSaving(true);
-    try {
-      const response = await fetch("/api/chat/name", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken()}`,
-        },
-        body: JSON.stringify({ name: normalizedName }),
-      });
-
-      const data = (await response.json().catch(() => ({}))) as { name?: string; error?: string };
-      if (!response.ok) {
-        setChatbotError(data.error || `Rename failed (HTTP ${response.status})`);
-        return;
-      }
-
-      const savedName = normalizeChatbotNameInput(data.name || normalizedName) || DEFAULT_CHATBOT_NAME;
-      setChatbotName(savedName);
-      setChatbotNameDraft(savedName);
-      setChatbotMessage("Chatbot name updated successfully.");
-      window.dispatchEvent(new Event("chatbot-name-updated"));
-    } catch {
-      setChatbotError("An error occurred while renaming the chatbot.");
-    } finally {
-      setChatbotSaving(false);
-    }
-  };
-
   const resetProfileEditing = () => {
     setProfileName(user?.name || "");
     setProfileEmail(user?.email || "");
     setProfilePhone(user?.phone || "");
+    setProfileDateOfBirth(user?.dateOfBirth || "");
+    setProfileGender(user?.gender || "");
+    setProfileNationality(user?.nationality || "");
+    setProfileAddress(user?.address || "");
     setProfilePhoto(user?.profilePhoto || null);
     setFavouriteTeacher("");
     setShowFavouriteTeacherEditor(false);
@@ -396,6 +324,10 @@ export default function Settings({ user }: SettingsProps) {
     profileName.trim() !== (user?.name || "").trim() ||
     profileEmail.trim() !== (user?.email || "").trim() ||
     profilePhone.trim() !== (user?.phone || "").trim() ||
+    profileDateOfBirth.trim() !== (user?.dateOfBirth || "").trim() ||
+    profileGender.trim() !== (user?.gender || "").trim() ||
+    profileNationality.trim() !== (user?.nationality || "").trim() ||
+    profileAddress.trim() !== (user?.address || "").trim() ||
     profilePhoto !== (user?.profilePhoto || null) ||
     favouriteTeacher.trim().length > 0;
 
@@ -404,12 +336,16 @@ export default function Settings({ user }: SettingsProps) {
     !securedPassword.trim() ||
     isVaultPasswordSet === null ||
     (isVaultPasswordSet ? !oldVaultPassword.trim() : !accountPassword.trim());
-  const normalizedChatbotNameDraft = normalizeChatbotNameInput(chatbotNameDraft);
-  const hasChatbotNameChanges = normalizedChatbotNameDraft !== chatbotName;
 
   const displayName = profileName.trim() || "-";
   const displayEmail = profileEmail.trim() || "-";
   const displayPhone = profilePhone.trim() || "Not provided";
+  const displayDateOfBirth = profileDateOfBirth.trim() || "Not provided";
+  const displayGender = profileGender.trim() || "Not provided";
+  const displayNationality = profileNationality.trim() || "Not provided";
+  const displayAddress = profileAddress.trim() || "Not provided";
+  const hasLegacyNationality =
+    profileNationality.trim().length > 0 && !NATIONALITIES.includes(profileNationality.trim());
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 text-slate-900 dark:text-slate-100">
@@ -448,69 +384,9 @@ export default function Settings({ user }: SettingsProps) {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Chatbot Name</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          This name is saved to your account and used in chat.
-                        </p>
-                      </div>
-                      {chatbotLoading && (
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Loading...</span>
-                      )}
-                    </div>
-
-                    {chatbotError && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
-                        {chatbotError}
-                      </div>
-                    )}
-                    {chatbotMessage && (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        {chatbotMessage}
-                      </div>
-                    )}
-
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                      <div className="w-full space-y-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          Assistant Name
-                        </label>
-                        <input
-                          type="text"
-                          value={chatbotNameDraft}
-                          maxLength={MAX_CHATBOT_NAME_LENGTH}
-                          onChange={(event) => {
-                            setChatbotNameDraft(event.target.value);
-                            setChatbotError("");
-                            setChatbotMessage("");
-                          }}
-                          placeholder="Enter chatbot name"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
-                        />
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {normalizedChatbotNameDraft.length}/{MAX_CHATBOT_NAME_LENGTH} characters
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleSaveChatbotName}
-                        disabled={chatbotSaving || chatbotLoading || !hasChatbotNameChanges}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {chatbotSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Save Name
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/60">
-                  <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-900/70">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                    <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 ring-4 ring-white dark:bg-indigo-900/40 dark:text-indigo-300 dark:ring-slate-800">
                       {profilePhoto ? (
                         <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
                       ) : (
@@ -519,37 +395,65 @@ export default function Settings({ user }: SettingsProps) {
                         </div>
                       )}
                     </div>
-
-                    <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Email</p>
-                        <p className="mt-1 break-all text-sm font-semibold text-slate-900 dark:text-slate-100">{displayEmail}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Phone</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayPhone}</p>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                        Account Profile
+                      </p>
+                      <h3 className="truncate text-xl font-bold text-slate-900 dark:text-slate-100">{displayName}</h3>
+                      <p className="truncate text-sm text-slate-600 dark:text-slate-300">{displayEmail}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          {displayGender}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          {displayNationality}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Phone</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayPhone}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Date of Birth</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayDateOfBirth}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Nationality</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayNationality}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Gender</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayGender}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:col-span-2 dark:border-slate-800 dark:bg-slate-900/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Address</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{displayAddress}</p>
+                  </div>
+                </div>
+
                 {isEditingProfile && (
-                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div className="space-y-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Edit Profile</h3>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300">
-                          Editing Mode
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Edit Profile</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Update your information and keep your account details current.
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          Editing
                         </span>
                       </div>
 
-                      <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+                      <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
                         <div className="space-y-3">
-                          <div className="mx-auto h-24 w-24 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                          <div className="mx-auto h-24 w-24 overflow-hidden rounded-full bg-indigo-100 text-3xl font-bold text-indigo-600 ring-4 ring-white dark:bg-indigo-900/40 dark:text-indigo-300 dark:ring-slate-800">
                             {profilePhoto ? (
                               <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
                             ) : (
@@ -588,7 +492,7 @@ export default function Settings({ user }: SettingsProps) {
                                 type="text"
                                 value={profileName}
                                 onChange={(e) => setProfileName(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                               />
                             </div>
                             <div className="space-y-1">
@@ -599,7 +503,7 @@ export default function Settings({ user }: SettingsProps) {
                                 type="text"
                                 value={profilePhone}
                                 onChange={(e) => setProfilePhone(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                               />
                             </div>
                           </div>
@@ -611,7 +515,68 @@ export default function Settings({ user }: SettingsProps) {
                               type="email"
                               value={profileEmail}
                               onChange={(e) => setProfileEmail(e.target.value)}
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                            />
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Date Of Birth
+                              </label>
+                              <input
+                                type="date"
+                                value={profileDateOfBirth}
+                                onChange={(e) => setProfileDateOfBirth(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Gender
+                              </label>
+                              <select
+                                value={profileGender}
+                                onChange={(e) => setProfileGender(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                              >
+                                <option value="">Select gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Non-binary">Non-binary</option>
+                                <option value="Other">Other</option>
+                                <option value="Prefer not to say">Prefer not to say</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Nationality
+                            </label>
+                            <select
+                              value={profileNationality}
+                              onChange={(e) => setProfileNationality(e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
+                            >
+                              {hasLegacyNationality && (
+                                <option value={profileNationality}>{profileNationality} (Current value)</option>
+                              )}
+                              <option value="">Select nationality</option>
+                              {NATIONALITIES.map((nationality) => (
+                                <option key={nationality} value={nationality}>
+                                  {nationality}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Address
+                            </label>
+                            <textarea
+                              value={profileAddress}
+                              onChange={(e) => setProfileAddress(e.target.value)}
+                              rows={3}
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900/40"
                             />
                           </div>
                         </div>
@@ -640,7 +605,7 @@ export default function Settings({ user }: SettingsProps) {
                         className="hidden"
                       />
 
-                      <div className="flex flex-wrap justify-end gap-2 pt-2">
+                      <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
                         <button
                           type="button"
                           onClick={() => switchTab("security")}

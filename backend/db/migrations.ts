@@ -8,6 +8,10 @@ const INITIAL_SCHEMA = `
     password TEXT NOT NULL,
     role TEXT DEFAULT 'user',
     phone TEXT,
+    date_of_birth TEXT,
+    gender TEXT,
+    nationality TEXT,
+    address TEXT,
     chatbot_name TEXT,
     favourite_teacher TEXT,
     secured_password TEXT,
@@ -138,6 +142,10 @@ export const runMigrations = (): void => {
   addColumn("users", "profile_photo", "TEXT");
   addColumn("users", "favourite_teacher", "TEXT");
   addColumn("users", "phone", "TEXT");
+  addColumn("users", "date_of_birth", "TEXT");
+  addColumn("users", "gender", "TEXT");
+  addColumn("users", "nationality", "TEXT");
+  addColumn("users", "address", "TEXT");
   addColumn("users", "chatbot_name", "TEXT");
   addColumn("documents", "is_secured", "INTEGER DEFAULT 0");
   addColumn("documents", "content", "TEXT");

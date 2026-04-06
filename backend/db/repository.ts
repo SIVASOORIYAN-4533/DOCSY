@@ -11,6 +11,10 @@ interface UserRecord {
   password: string;
   role: string;
   phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  address?: string | null;
   chatbot_name?: string | null;
   favourite_teacher?: string | null;
   secured_password?: string | null;
@@ -87,6 +91,10 @@ const userSchema = new Schema(
     password: { type: String, required: true },
     role: { type: String, default: "user" },
     phone: { type: String, default: null },
+    date_of_birth: { type: String, default: null },
+    gender: { type: String, default: null },
+    nationality: { type: String, default: null },
+    address: { type: String, default: null },
     chatbot_name: { type: String, default: "Agastiya" },
     favourite_teacher: { type: String, default: null },
     secured_password: { type: String, default: null },
@@ -208,6 +216,10 @@ const ensureUsersColumns = (): void => {
     const columns = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     const hasFavouriteTeacher = columns.some((column) => column.name === "favourite_teacher");
     const hasPhone = columns.some((column) => column.name === "phone");
+    const hasDateOfBirth = columns.some((column) => column.name === "date_of_birth");
+    const hasGender = columns.some((column) => column.name === "gender");
+    const hasNationality = columns.some((column) => column.name === "nationality");
+    const hasAddress = columns.some((column) => column.name === "address");
     const hasChatbotName = columns.some((column) => column.name === "chatbot_name");
 
     if (!hasFavouriteTeacher) {
@@ -216,6 +228,22 @@ const ensureUsersColumns = (): void => {
 
     if (!hasPhone) {
       db.prepare("ALTER TABLE users ADD COLUMN phone TEXT").run();
+    }
+
+    if (!hasDateOfBirth) {
+      db.prepare("ALTER TABLE users ADD COLUMN date_of_birth TEXT").run();
+    }
+
+    if (!hasGender) {
+      db.prepare("ALTER TABLE users ADD COLUMN gender TEXT").run();
+    }
+
+    if (!hasNationality) {
+      db.prepare("ALTER TABLE users ADD COLUMN nationality TEXT").run();
+    }
+
+    if (!hasAddress) {
+      db.prepare("ALTER TABLE users ADD COLUMN address TEXT").run();
     }
 
     if (!hasChatbotName) {
@@ -351,6 +379,22 @@ export const initializeDatabase = async (): Promise<void> => {
         { $set: { phone: null } },
       );
       await UserModel.updateMany(
+        { date_of_birth: { $exists: false } },
+        { $set: { date_of_birth: null } },
+      );
+      await UserModel.updateMany(
+        { gender: { $exists: false } },
+        { $set: { gender: null } },
+      );
+      await UserModel.updateMany(
+        { nationality: { $exists: false } },
+        { $set: { nationality: null } },
+      );
+      await UserModel.updateMany(
+        { address: { $exists: false } },
+        { $set: { address: null } },
+      );
+      await UserModel.updateMany(
         { chatbot_name: { $exists: false } },
         { $set: { chatbot_name: "Agastiya" } },
       );
@@ -390,10 +434,18 @@ export const createUser = async (
   role: string,
   favouriteTeacher: string,
   phone?: string,
+  dateOfBirth?: string | null,
+  gender?: string | null,
+  nationality?: string | null,
+  address?: string | null,
 ): Promise<number> => {
   if (isMongoProvider) {
     const id = await getNextSequence("users");
     const normalizedPhone = String(phone || "").trim();
+    const normalizedDateOfBirth = String(dateOfBirth || "").trim();
+    const normalizedGender = String(gender || "").trim();
+    const normalizedNationality = String(nationality || "").trim();
+    const normalizedAddress = String(address || "").trim();
     await UserModel.create({
       id,
       name,
@@ -401,6 +453,10 @@ export const createUser = async (
       password,
       role,
       phone: normalizedPhone || null,
+      date_of_birth: normalizedDateOfBirth || null,
+      gender: normalizedGender || null,
+      nationality: normalizedNationality || null,
+      address: normalizedAddress || null,
       chatbot_name: "Agastiya",
       favourite_teacher: favouriteTeacher,
       profile_photo: null,
@@ -410,10 +466,25 @@ export const createUser = async (
 
   ensureUsersColumns();
   const normalizedPhone = String(phone || "").trim();
+  const normalizedDateOfBirth = String(dateOfBirth || "").trim();
+  const normalizedGender = String(gender || "").trim();
+  const normalizedNationality = String(nationality || "").trim();
+  const normalizedAddress = String(address || "").trim();
   const stmt = db.prepare(
-    "INSERT INTO users (name, email, password, role, favourite_teacher, phone) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (name, email, password, role, favourite_teacher, phone, date_of_birth, gender, nationality, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
-  const result = stmt.run(name, email, password, role || "user", favouriteTeacher, normalizedPhone || null);
+  const result = stmt.run(
+    name,
+    email,
+    password,
+    role || "user",
+    favouriteTeacher,
+    normalizedPhone || null,
+    normalizedDateOfBirth || null,
+    normalizedGender || null,
+    normalizedNationality || null,
+    normalizedAddress || null,
+  );
   return Number(result.lastInsertRowid);
 };
 
@@ -437,6 +508,10 @@ export const findUserByEmail = async (email: string): Promise<UserRecord | null>
       password: user.password,
       role: user.role,
       phone: user.phone ?? null,
+      date_of_birth: user.date_of_birth ?? user.dateOfBirth ?? null,
+      gender: user.gender ?? null,
+      nationality: user.nationality ?? null,
+      address: user.address ?? null,
       chatbot_name: user.chatbot_name ?? "Agastiya",
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
@@ -464,6 +539,10 @@ export const findUserById = async (userId: number): Promise<UserRecord | null> =
       password: user.password,
       role: user.role,
       phone: user.phone ?? null,
+      date_of_birth: user.date_of_birth ?? user.dateOfBirth ?? null,
+      gender: user.gender ?? null,
+      nationality: user.nationality ?? null,
+      address: user.address ?? null,
       chatbot_name: user.chatbot_name ?? "Agastiya",
       favourite_teacher: user.favourite_teacher ?? null,
       secured_password: user.secured_password,
@@ -760,6 +839,10 @@ export const updateUserProfile = async (
   name: string,
   email: string,
   phone: string | null,
+  dateOfBirth: string | null,
+  gender: string | null,
+  nationality: string | null,
+  address: string | null,
   profilePhoto: string | null,
   favouriteTeacher?: string,
 ): Promise<void> => {
@@ -768,6 +851,11 @@ export const updateUserProfile = async (
       name,
       email,
       phone,
+      date_of_birth: dateOfBirth,
+      dateOfBirth,
+      gender,
+      nationality,
+      address,
       profile_photo: profilePhoto,
       profilePhoto,
     };
@@ -782,13 +870,17 @@ export const updateUserProfile = async (
 
   if (favouriteTeacher) {
     ensureUsersColumns();
-    db.prepare("UPDATE users SET name = ?, email = ?, phone = ?, profile_photo = ?, favourite_teacher = ? WHERE id = ?")
-      .run(name, email, phone, profilePhoto, favouriteTeacher, userId);
+    db.prepare(
+      "UPDATE users SET name = ?, email = ?, phone = ?, date_of_birth = ?, gender = ?, nationality = ?, address = ?, profile_photo = ?, favourite_teacher = ? WHERE id = ?",
+    )
+      .run(name, email, phone, dateOfBirth, gender, nationality, address, profilePhoto, favouriteTeacher, userId);
     return;
   }
 
-  db.prepare("UPDATE users SET name = ?, email = ?, phone = ?, profile_photo = ? WHERE id = ?")
-    .run(name, email, phone, profilePhoto, userId);
+  db.prepare(
+    "UPDATE users SET name = ?, email = ?, phone = ?, date_of_birth = ?, gender = ?, nationality = ?, address = ?, profile_photo = ? WHERE id = ?",
+  )
+    .run(name, email, phone, dateOfBirth, gender, nationality, address, profilePhoto, userId);
 };
 
 export const setUserSecuredPassword = async (userId: number, securedPassword: string): Promise<void> => {

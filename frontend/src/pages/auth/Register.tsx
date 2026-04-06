@@ -1,14 +1,33 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, User as UserIcon, Phone, Chrome, ArrowLeft, GraduationCap, Eye, EyeOff } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User as UserIcon,
+  Phone,
+  Chrome,
+  ArrowLeft,
+  GraduationCap,
+  Eye,
+  EyeOff,
+  Calendar,
+  Users,
+  Globe,
+  MapPin,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { buildApiUrl } from "../../utils/api";
+import { NATIONALITIES } from "../../constants/nationalities";
 
 export default function Register() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
+    dateOfBirth: "",
+    gender: "",
+    nationality: "",
+    address: "",
     favouriteTeacher: "",
     password: "",
     confirmPassword: "",
@@ -66,6 +85,11 @@ export default function Register() {
     e.preventDefault();
     if (!formData.phone.trim()) {
       setError("Phone number is required");
+      return;
+    }
+
+    if (!formData.dateOfBirth.trim() || !formData.gender.trim() || !formData.nationality.trim() || !formData.address.trim()) {
+      setError("Date of birth, gender, nationality, and address are required");
       return;
     }
 
@@ -211,6 +235,79 @@ export default function Register() {
                     value={formData.favouriteTeacher}
                     onChange={(e) => setFormData({ ...formData, favouriteTeacher: e.target.value })}
                     placeholder="e.g. Mrs. Smith"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-indigo-100 ml-1">Date of Birth</label>
+                <div className="relative group">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
+                  <input
+                    type="date"
+                    required
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-indigo-100 ml-1">Gender</label>
+                <div className="relative group">
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
+                  <select
+                    required
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                  >
+                    <option value="" className="bg-slate-900 text-indigo-200">Select gender</option>
+                    <option value="Male" className="bg-slate-900 text-white">Male</option>
+                    <option value="Female" className="bg-slate-900 text-white">Female</option>
+                    <option value="Non-binary" className="bg-slate-900 text-white">Non-binary</option>
+                    <option value="Other" className="bg-slate-900 text-white">Other</option>
+                    <option value="Prefer not to say" className="bg-slate-900 text-white">Prefer not to say</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-indigo-100 ml-1">Nationality</label>
+                <div className="relative group">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
+                  <select
+                    required
+                    value={formData.nationality}
+                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+                  >
+                    <option value="" className="bg-slate-900 text-indigo-200">Select nationality</option>
+                    {NATIONALITIES.map((nationality) => (
+                      <option key={nationality} value={nationality} className="bg-slate-900 text-white">
+                        {nationality}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-indigo-100 ml-1">Address</label>
+                <div className="relative group">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Enter your address"
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-indigo-300/50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
                   />
                 </div>

@@ -209,7 +209,15 @@ export default function SharedFiles({ user }: SharedFilesProps) {
   };
 
   const handleView = async (doc: Document) => {
+    const previewTab = window.open("", "_blank");
     try {
+      if (previewTab && !previewTab.closed) {
+        previewTab.document.title = "Opening document...";
+        if (previewTab.document.body) {
+          previewTab.document.body.textContent = "Loading document preview...";
+        }
+      }
+
       const response = await fetch(`/api/documents/${doc.id}/view`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -223,8 +231,21 @@ export default function SharedFiles({ user }: SharedFilesProps) {
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
+
+      if (previewTab && !previewTab.closed) {
+        previewTab.location.href = url;
+      } else {
+        const fallbackTab = window.open(url, "_blank", "noopener,noreferrer");
+        if (!fallbackTab) {
+          window.location.href = url;
+        }
+      }
+
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
     } catch (err: any) {
+      if (previewTab && !previewTab.closed) {
+        previewTab.close();
+      }
       setError(err?.message || "Unable to view this file.");
     }
   };

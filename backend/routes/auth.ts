@@ -23,6 +23,10 @@ const buildAuthResponse = (user: {
   email: string;
   role: string;
   phone?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  address?: string | null;
   profile_photo?: string | null;
   secured_password?: string | null;
 }) => {
@@ -40,6 +44,10 @@ const buildAuthResponse = (user: {
       email: user.email,
       role: safeRole,
       phone: user.phone ?? null,
+      dateOfBirth: user.date_of_birth ?? null,
+      gender: user.gender ?? null,
+      nationality: user.nationality ?? null,
+      address: user.address ?? null,
       profilePhoto: user.profile_photo ?? null,
       hasSecuredPassword: !!user.secured_password,
     },
@@ -170,6 +178,26 @@ const normalizeEmail = (value: unknown): string => {
   return String(value || "").trim().toLowerCase();
 };
 
+const normalizeDateOfBirth = (value: unknown): string => {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return "";
+  }
+
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return normalized;
+};
+
+const allowedGenders = new Set(["Male", "Female", "Non-binary", "Other", "Prefer not to say"]);
+
 const isStrongPassword = (value: unknown): boolean => {
   const password = String(value || "");
   const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,}$/;
@@ -192,16 +220,35 @@ const ensureOAuthUser = async (
 };
 
 router.post("/register", async (req, res) => {
-  const { name, email, phone, password, favouriteTeacher } = req.body || {};
+  const { name, email, phone, password, favouriteTeacher, dateOfBirth, gender, nationality, address } = req.body || {};
   const normalizedEmail = normalizeEmail(email);
   const normalizedName = String(name || "").trim();
   const normalizedPhone = String(phone || "").trim();
+  const normalizedDateOfBirth = normalizeDateOfBirth(dateOfBirth);
+  const normalizedGender = String(gender || "").trim();
+  const normalizedNationality = String(nationality || "").trim();
+  const normalizedAddress = String(address || "").trim();
   const normalizedFavouriteTeacher = String(favouriteTeacher || "").trim().toLowerCase();
 
-  if (!normalizedName || !normalizedEmail || !normalizedPhone || !password || !normalizedFavouriteTeacher) {
+  if (
+    !normalizedName ||
+    !normalizedEmail ||
+    !normalizedPhone ||
+    !normalizedDateOfBirth ||
+    !normalizedGender ||
+    !normalizedNationality ||
+    !normalizedAddress ||
+    !password ||
+    !normalizedFavouriteTeacher
+  ) {
     res.status(400).json({
-      error: "Name, email, phone, password, and favourite teacher are required",
+      error: "Name, email, phone, date of birth, gender, nationality, address, password, and favourite teacher are required",
     });
+    return;
+  }
+
+  if (!allowedGenders.has(normalizedGender)) {
+    res.status(400).json({ error: "Please select a valid gender." });
     return;
   }
 
@@ -221,6 +268,10 @@ router.post("/register", async (req, res) => {
       safeRole,
       normalizedFavouriteTeacher,
       normalizedPhone,
+      normalizedDateOfBirth,
+      normalizedGender,
+      normalizedNationality,
+      normalizedAddress,
     );
     res.status(201).json({ id: userId });
   } catch {
@@ -495,7 +546,7 @@ router.post("/login", async (req, res) => {
 });
 
 router.put("/profile", authenticateToken, async (req, res) => {
-  const { name, email, phone, profilePhoto, favouriteTeacher } = req.body || {};
+  const { name, email, phone, dateOfBirth, gender, nationality, address, profilePhoto, favouriteTeacher } = req.body || {};
 
   if (!req.user) {
     res.sendStatus(401);
@@ -506,8 +557,23 @@ router.put("/profile", authenticateToken, async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
     const normalizedName = String(name || "").trim();
     const normalizedPhone = String(phone || "").trim();
+    const dateOfBirthInput = String(dateOfBirth || "").trim();
+    const normalizedDateOfBirth = dateOfBirthInput ? normalizeDateOfBirth(dateOfBirth) : "";
+    const normalizedGender = String(gender || "").trim();
+    const normalizedNationality = String(nationality || "").trim();
+    const normalizedAddress = String(address || "").trim();
     if (!normalizedName || !normalizedEmail) {
       res.status(400).json({ error: "Name and email are required" });
+      return;
+    }
+
+    if (dateOfBirthInput && !normalizedDateOfBirth) {
+      res.status(400).json({ error: "Please provide a valid date of birth (YYYY-MM-DD)." });
+      return;
+    }
+
+    if (normalizedGender && !allowedGenders.has(normalizedGender)) {
+      res.status(400).json({ error: "Please select a valid gender." });
       return;
     }
 
@@ -518,6 +584,10 @@ router.put("/profile", authenticateToken, async (req, res) => {
       normalizedName,
       normalizedEmail,
       normalizedPhone || null,
+      normalizedDateOfBirth || null,
+      normalizedGender || null,
+      normalizedNationality || null,
+      normalizedAddress || null,
       profilePhoto ?? null,
       normalizedFavouriteTeacher || undefined,
     );
