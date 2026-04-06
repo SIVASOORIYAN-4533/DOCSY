@@ -379,12 +379,13 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
   const handleDownload = async (doc: Document) => {
     setError("");
     try {
-      let downloadDocId = doc.id;
       if (doc.user_id !== user.id) {
-        downloadDocId = await ensureSharedDocSavedToMyDocuments(doc);
+        await ensureSharedDocSavedToMyDocuments(doc);
+        setShareResult("File saved to your documents.");
+        return;
       }
 
-      const response = await fetch(`/api/documents/${downloadDocId}/download`, {
+      const response = await fetch(`/api/documents/${doc.id}/download`, {
         headers: { "Authorization": `Bearer ${getAuthToken()}` }
       });
       if (isHtmlResponse(response)) {
