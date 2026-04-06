@@ -24,6 +24,56 @@ import { processDocumentWithAI } from "../services/aiProcessing";
 import { pushRealtimeEventToUser } from "../services/realtime";
 
 const router = Router();
+const normalizedUploadDir = String(env.uploadDir || "uploads")
+  .replace(/\\/g, "/")
+  .replace(/^\/+|\/+$/g, "");
+const uploadsRoot = path.resolve(process.cwd(), env.uploadDir);
+
+const toStoredUploadPath = (absoluteFilePath: string): string => {
+  const fileName = path.basename(String(absoluteFilePath || ""));
+  return normalizedUploadDir ? `${normalizedUploadDir}/${fileName}` : fileName;
+};
+
+const resolveExistingDocumentPath = (storedPath: string): string | null => {
+  const raw = String(storedPath || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const candidates: string[] = [];
+  if (path.isAbsolute(raw)) {
+    candidates.push(raw);
+  } else {
+    candidates.push(path.resolve(process.cwd(), raw));
+  }
+
+  const normalizedRaw = raw.replace(/\\/g, "/");
+  const uploadSegmentMatch = normalizedRaw.match(/(?:^|\/)(uploads\/.+)$/i);
+  if (uploadSegmentMatch?.[1]) {
+    candidates.push(path.resolve(process.cwd(), uploadSegmentMatch[1]));
+  }
+
+  if (normalizedUploadDir && normalizedRaw.startsWith(`${normalizedUploadDir}/`)) {
+    const fromConfiguredDir = normalizedRaw.slice(normalizedUploadDir.length + 1);
+    if (fromConfiguredDir) {
+      candidates.push(path.join(uploadsRoot, fromConfiguredDir));
+    }
+  }
+
+  const baseName = path.basename(raw);
+  if (baseName) {
+    candidates.push(path.join(uploadsRoot, baseName));
+  }
+
+  const uniqueCandidates = [...new Set(candidates.map((entry) => path.normalize(entry)))];
+  for (const candidate of uniqueCandidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
 
 router.post("/upload", authenticateToken, upload.single("file"), async (req, res) => {
   const { title, category, description, tags, department, is_secured } = req.body || {};
@@ -41,7 +91,7 @@ router.post("/upload", authenticateToken, upload.single("file"), async (req, res
 
   const docId = await createDocument({
     title: title || file.originalname,
-    file_path: file.path,
+    file_path: toStoredUploadPath(file.path),
     category: category || "",
     description: description || "",
     tags: tags || "",
@@ -123,7 +173,7 @@ router.post("/share-upload", authenticateToken, upload.single("file"), async (re
 
   const docId = await createDocument({
     title: String(title || file.originalname),
-    file_path: file.path,
+    file_path: toStoredUploadPath(file.path),
     category: String(category || "Shared"),
     description: String(description || ""),
     tags: String(tags || ""),
@@ -183,8 +233,9 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     await deleteSharingByDocId(docId);
     await deleteDocument(docId);
 
-    if (fs.existsSync(doc.file_path)) {
-      fs.unlinkSync(doc.file_path);
+    const resolvedPath = resolveExistingDocumentPath(doc.file_path);
+    if (resolvedPath && fs.existsSync(resolvedPath)) {
+      fs.unlinkSync(resolvedPath);
     }
 
     res.json({ success: true });
@@ -274,22 +325,22 @@ router.post("/:id/copy-to-my-documents", authenticateToken, async (req, res) => 
     return;
   }
 
-  if (!fs.existsSync(sourceDoc.file_path)) {
+  const sourceFilePath = resolveExistingDocumentPath(sourceDoc.file_path);
+  if (!sourceFilePath) {
     res.status(404).json({ error: "Source file not found on server." });
     return;
   }
 
-  const uploadsRoot = path.resolve(process.cwd(), env.uploadDir);
   const safeTitle = String(sourceDoc.title || "document").replace(/[^\w.-]/g, "_");
   const copiedFileName = `${Date.now()}-${req.user.id}-${safeTitle}`;
   const copiedFilePath = path.join(uploadsRoot, copiedFileName);
 
   try {
-    fs.copyFileSync(sourceDoc.file_path, copiedFilePath);
+    fs.copyFileSync(sourceFilePath, copiedFilePath);
 
     const copiedDocId = await createDocument({
       title: sourceDoc.title || safeTitle,
-      file_path: copiedFilePath,
+      file_path: toStoredUploadPath(copiedFilePath),
       category: sourceDoc.category || "",
       description: sourceDoc.description || "",
       tags: sourceDoc.tags || "",
@@ -352,8 +403,9 @@ router.delete("/:id/shared-access", authenticateToken, async (req, res) => {
     if (isOwner) {
       await deleteSharingByDocId(docId);
       await deleteDocument(docId);
-      if (fs.existsSync(doc.file_path)) {
-        fs.unlinkSync(doc.file_path);
+      const resolvedPath = resolveExistingDocumentPath(doc.file_path);
+      if (resolvedPath && fs.existsSync(resolvedPath)) {
+        fs.unlinkSync(resolvedPath);
       }
       res.json({ success: true, deleted: "document" });
       return;
@@ -484,12 +536,13 @@ router.get("/:id/download", authenticateToken, async (req, res) => {
     return;
   }
 
-  if (!fs.existsSync(doc.file_path)) {
+  const resolvedPath = resolveExistingDocumentPath(doc.file_path);
+  if (!resolvedPath) {
     res.status(404).json({ error: "File not found on server" });
     return;
   }
 
-  res.download(doc.file_path, doc.title);
+  res.download(resolvedPath, doc.title);
 });
 
 router.get("/:id/view", authenticateToken, async (req, res) => {
@@ -518,14 +571,15 @@ router.get("/:id/view", authenticateToken, async (req, res) => {
     return;
   }
 
-  if (!fs.existsSync(doc.file_path)) {
+  const resolvedPath = resolveExistingDocumentPath(doc.file_path);
+  if (!resolvedPath) {
     res.status(404).json({ error: "File not found on server" });
     return;
   }
 
   res.setHeader("Content-Type", doc.mime_type || "application/octet-stream");
   res.setHeader("Content-Disposition", `inline; filename="${doc.title}"`);
-  res.sendFile(doc.file_path);
+  res.sendFile(resolvedPath);
 });
 
 export default router;
