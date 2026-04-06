@@ -118,7 +118,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
   const copySharedDocViaDownloadAndUpload = async (doc: Document): Promise<number> => {
     const token = getAuthToken();
-    const downloadResponse = await fetch(`/api/documents/${doc.id}/download`, {
+    const downloadResponse = await fetch(`/api/documents/${doc.id}/view`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -128,7 +128,7 @@ export default function MyDocuments({ user }: MyDocumentsProps) {
 
     if (!downloadResponse.ok) {
       const downloadData = await parseJsonSafe(downloadResponse);
-      throw new Error(downloadData?.error || "Unable to download this shared file.");
+      throw new Error(downloadData?.error || "Unable to load this shared file.");
     }
 
     const blob = await downloadResponse.blob();
